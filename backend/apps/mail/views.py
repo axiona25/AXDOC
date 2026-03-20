@@ -206,20 +206,28 @@ class MailMessageViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="link_protocol")
     def link_protocol(self, request, pk=None):
-        """Associa email a un protocollo."""
+        """Associa email a un protocollo. Accetta UUID o protocol_id (es: 2026/123675/0003)."""
         from apps.protocols.models import Protocol
 
         msg = self.get_object()
-        protocol_id = request.data.get("protocol_id")
+        protocol_id = (request.data.get("protocol_id") or "").strip()
         if not protocol_id:
             return Response({"protocol_id": "Obbligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+        # Cerca prima per UUID, poi per protocol_id
+        protocol = None
         try:
-            protocol = Protocol.objects.get(pk=protocol_id)
-            msg.protocol = protocol
-            msg.save(update_fields=["protocol"])
-            return Response({"linked": True, "protocol_id": str(protocol.id)})
-        except Protocol.DoesNotExist:
+            protocol = Protocol.objects.filter(pk=protocol_id).first()
+        except (ValueError, Exception):
+            pass
+        if not protocol:
+            protocol = Protocol.objects.filter(protocol_id=protocol_id).first()
+        if not protocol:
+            protocol = Protocol.objects.filter(protocol_number=protocol_id).first()
+        if not protocol:
             return Response({"protocol_id": "Protocollo non trovato."}, status=status.HTTP_400_BAD_REQUEST)
+        msg.protocol = protocol
+        msg.save(update_fields=["protocol"])
+        return Response({"linked": True, "protocol_id": str(protocol.id)})
 
     @action(detail=True, methods=["post"], url_path="unlink_protocol")
     def unlink_protocol(self, request, pk=None):
