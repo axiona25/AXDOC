@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { ChangePasswordModal } from './components/auth/ChangePasswordModal'
 import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -32,13 +33,27 @@ import './index.css'
 
 function App() {
   const initializeAuth = useAuthStore((s) => s.initializeAuth)
+  const user = useAuthStore((s) => s.user)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const refetchUser = useAuthStore((s) => s.initializeAuth)
 
   useEffect(() => {
     initializeAuth()
   }, [initializeAuth])
 
+  const showChangePasswordModal =
+    isAuthenticated && user && user.must_change_password === true
+
   return (
     <BrowserRouter>
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          isOpen={true}
+          onSuccess={async () => {
+            await refetchUser()
+          }}
+        />
+      )}
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

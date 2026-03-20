@@ -47,12 +47,22 @@ export interface CreateUserManualData {
   send_welcome_email?: boolean
 }
 
-export function createUserManual(data: CreateUserManualData): Promise<User> {
-  return api.post<User>('/api/users/create_manual/', data).then((r) => r.data)
+export interface CreateUserManualResponse {
+  user: User
+  generated_password: string | null
+  welcome_email_sent: boolean
+}
+
+export function createUserManual(data: CreateUserManualData): Promise<CreateUserManualResponse> {
+  return api.post<CreateUserManualResponse>('/api/users/create_manual/', data).then((r) => r.data)
 }
 
 export function changeUserType(userId: string, userType: 'internal' | 'guest'): Promise<User> {
   return api.post<User>(`/api/users/${userId}/change_type/`, { user_type: userType }).then((r) => r.data)
+}
+
+export function resetUserPassword(userId: string): Promise<{ generated_password: string }> {
+  return api.post<{ generated_password: string }>(`/api/users/${userId}/reset_password/`).then((r) => r.data)
 }
 
 export interface UpdateUserData {

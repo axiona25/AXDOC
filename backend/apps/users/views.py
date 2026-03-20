@@ -56,7 +56,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "create", "destroy", "deactivate", "reactivate", "import_template", "import_preview", "import_users", "create_manual", "change_type"):
+        if self.action in ("list", "create", "destroy", "deactivate", "reactivate", "import_template", "import_preview", "import_users", "create_manual", "change_type", "reset_password"):
             return [IsAuthenticated(), IsAdminRole(), IsInternalUser()]
         return [IsAuthenticated(), IsAdminOrSelf()]
 
@@ -108,11 +108,16 @@ class UserViewSet(viewsets.ModelViewSet):
             qs = qs.exclude(pk__in=assigned_ids)
         return qs.order_by("-date_joined")
 
-    def perform_destroy(self, instance):
-        """Soft delete: is_deleted=True."""
+    def destroy(self, request, *args, **kwargs):
+        """Soft delete: modifica email per liberarla e imposta is_deleted=True."""
+        instance = self.get_object()
+        # Libera l'email aggiungendo suffisso deleted+timestamp
+        import time
+        instance.email = f"{instance.email}.deleted_{int(time.time())}"
         instance.is_deleted = True
         instance.is_active = False
-        instance.save(update_fields=["is_deleted", "is_active", "updated_at"])
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"])
     def me(self, request):
@@ -128,13 +133,35 @@ class UserViewSet(viewsets.ModelViewSet):
         organizational_unit_id (opz), password (opz, se vuoto generata), send_welcome_email (default true).
         Solo ADMIN, solo utenti interni.
         """
-        serializer = UserCreateManualSerializer(data=request.data)
+        import secrets
+        import string
+        
+        # Genera password se non fornita dall'utente
+        provided_password = (request.data.get("password") or "").strip()
+        provided_by_user = bool(provided_password)
+        
+        if not provided_by_user:
+            alphabet = string.ascii_letters + string.digits
+            generated_password = "".join(secrets.choice(alphabet) for _ in range(16))
+        else:
+            generated_password = provided_password
+        
+        # Prepara i dati per il serializer
+        serializer_data = request.data.copy()
+        if not provided_by_user:
+            serializer_data["password"] = generated_password
+        
+        serializer = UserCreateManualSerializer(data=serializer_data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(
-            UserSerializer(user).data,
-            status=status.HTTP_201_CREATED,
-        )
+        
+        send_welcome_email = serializer.validated_data.get("send_welcome_email", True)
+        
+        return Response({
+            "user": UserSerializer(user).data,
+            "generated_password": generated_password if not provided_by_user else None,
+            "welcome_email_sent": send_welcome_email,
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path="change_type")
     def change_type(self, request, pk=None):
@@ -154,6 +181,28 @@ class UserViewSet(viewsets.ModelViewSet):
             user.role = "OPERATOR"
         user.save(update_fields=["user_type", "role", "updated_at"])
         return Response(UserSerializer(user).data)
+
+    @action(detail=True, methods=["post"], url_path="reset_password")
+    def reset_password(self, request, pk=None):
+        """
+        POST /api/users/<id>/reset_password/
+        Genera nuova password temporanea per l'utente. Solo ADMIN.
+        """
+        if request.user.role != "ADMIN":
+            return Response({"detail": "Non autorizzato."}, status=status.HTTP_403_FORBIDDEN)
+        
+        import secrets
+        import string
+        instance = self.get_object()
+        alphabet = string.ascii_letters + string.digits
+        new_password = "".join(secrets.choice(alphabet) for _ in range(16))
+        instance.set_password(new_password)
+        instance.must_change_password = True
+        instance.save(update_fields=["password", "must_change_password", "updated_at"])
+        return Response({
+            "detail": "Password reimpostata con successo.",
+            "generated_password": new_password,
+        })
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsAdminRole])
     def deactivate(self, request, pk=None):

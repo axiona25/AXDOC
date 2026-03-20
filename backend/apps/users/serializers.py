@@ -82,6 +82,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = ["email", "first_name", "last_name", "user_type", "role", "phone"]
 
+    def validate_email(self, value):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if User.objects.filter(email__iexact=value, is_deleted=False).exists():
+            raise serializers.ValidationError(
+                "Esiste già un utente con questa email."
+            )
+        return value.lower()
+
     def create(self, validated_data):
         import secrets
         import string
@@ -147,9 +156,13 @@ class UserCreateManualSerializer(serializers.Serializer):
     send_welcome_email = serializers.BooleanField(default=True)
 
     def validate_email(self, value):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
         if User.objects.filter(email__iexact=value, is_deleted=False).exists():
-            raise serializers.ValidationError("Un utente con questa email esiste già.")
-        return value
+            raise serializers.ValidationError(
+                "Esiste già un utente con questa email."
+            )
+        return value.lower()
 
     def validate_organizational_unit_id(self, value):
         if value is None:

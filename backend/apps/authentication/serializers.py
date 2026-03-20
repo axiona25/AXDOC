@@ -86,3 +86,20 @@ class AcceptInvitationSerializer(serializers.Serializer):
         if data["password"] != data["password_confirm"]:
             raise serializers.ValidationError({"password_confirm": "Le password non coincidono."})
         return data
+
+
+class ChangePasswordRequiredSerializer(serializers.Serializer):
+    """Cambio password obbligatorio per utenti con must_change_password=True."""
+
+    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    confirm_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+    def validate_new_password(self, value):
+        return _validate_password(value)
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Le password non coincidono."}
+            )
+        return data

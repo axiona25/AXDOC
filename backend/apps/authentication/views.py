@@ -23,6 +23,7 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     InviteUserSerializer,
     AcceptInvitationSerializer,
+    ChangePasswordRequiredSerializer,
 )
 from .mfa import (
     generate_totp_secret,
@@ -333,6 +334,39 @@ class ChangePasswordView(APIView):
         AuditLog.log(request.user, "PASSWORD_CHANGED", {}, request)
         return Response(
             {"message": "Password aggiornata."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChangePasswordRequiredView(APIView):
+    """
+    POST /api/auth/change_password/
+    Body: { "new_password": "...", "confirm_password": "..." }
+    Solo per utenti con must_change_password=True.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.must_change_password:
+            return Response(
+                {"detail": "Questo endpoint è disponibile solo per utenti con password temporanea."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = ChangePasswordRequiredSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_password(serializer.validated_data["new_password"], request.user)
+        except DjangoValidationError as e:
+            msg = e.messages[0] if e.messages else "Password non valida."
+            return Response({"new_password": msg}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.must_change_password = False
+        request.user.save(update_fields=["password", "must_change_password"])
+        AuditLog.log(request.user, "PASSWORD_CHANGED", {}, request)
+        return Response(
+            {"detail": "Password aggiornata."},
             status=status.HTTP_200_OK,
         )
 

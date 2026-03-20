@@ -88,3 +88,13 @@ export async function changePassword(
     new_password_confirm,
   })
 }
+
+export async function changePasswordRequired(
+  newPassword: string,
+  confirmPassword: string
+): Promise<void> {
+  await api.post('/api/auth/change_password/', {
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  })
+}

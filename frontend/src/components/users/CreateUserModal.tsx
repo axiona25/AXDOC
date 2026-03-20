@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Dialog, DialogTitle } from '@headlessui/react'
 import { createUserManual, type CreateUserManualData } from '../../services/userService'
 import type { OrganizationalUnit } from '../../services/organizationService'
 
@@ -40,11 +41,16 @@ export function CreateUserModal({
   organizations,
 }: CreateUserModalProps) {
   const [error, setError] = useState<string | null>(null)
+  const [successData, setSuccessData] = useState<{
+    email: string
+    generated_password: string
+  } | null>(null)
   const {
     register,
     handleSubmit,
     watch,
     reset,
+    setError: setFieldError,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -79,20 +85,110 @@ export function CreateUserModal({
         if (data.organizational_unit_id) payload.organizational_unit_id = data.organizational_unit_id
       }
       if (!data.generate_password && data.password?.trim()) payload.password = data.password.trim()
-      await createUserManual(payload)
-      reset()
-      onSuccess()
-      onClose()
+      const response = await createUserManual(payload)
+      
+      // Se c'è una password generata, mostra il modal di successo
+      if (response.generated_password) {
+        setSuccessData({
+          email: response.user.email,
+          generated_password: response.generated_password,
+        })
+      } else {
+        // Se non c'è password generata, chiudi normalmente
+        reset()
+        onSuccess()
+        onClose()
+      }
     } catch (err: unknown) {
-      const res = (err as { response?: { data?: { detail?: string; email?: string[] } } })?.response
-      setError(res?.data?.email?.[0] ?? res?.data?.detail ?? 'Errore durante la creazione.')
+      const res = (err as { response?: { data?: { detail?: string; email?: string[]; non_field_errors?: string[] } } })?.response
+      const errorData = res?.data
+      
+      // Se c'è un errore email, mostralo sotto il campo email
+      if (errorData?.email) {
+        setFieldError('email', {
+          type: 'server',
+          message: Array.isArray(errorData.email) ? errorData.email[0] : errorData.email,
+        })
+      }
+      // Se ci sono errori generali (non_field_errors o detail), mostra banner rosso
+      else if (errorData?.non_field_errors || errorData?.detail) {
+        const errorMessage = Array.isArray(errorData.non_field_errors) 
+          ? errorData.non_field_errors[0] 
+          : errorData.detail || 'Errore durante la creazione.'
+        setError(errorMessage)
+      } else {
+        setError('Errore durante la creazione.')
+      }
     }
+  }
+
+  const handleCopyPassword = () => {
+    if (successData?.generated_password) {
+      navigator.clipboard.writeText(successData.generated_password)
+    }
+  }
+
+  const handleCloseSuccess = () => {
+    setSuccessData(null)
+    reset()
+    onSuccess()
+    onClose()
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <>
+      {/* Modal di successo con password generata */}
+      <Dialog open={!!successData} onClose={() => {}} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <DialogTitle className="text-lg font-semibold text-slate-800">
+              Utente creato con successo!
+            </DialogTitle>
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">Email:</span> {successData?.email}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">Password temporanea:</span>
+                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 rounded bg-slate-100 px-3 py-2 text-sm font-mono">
+                    {successData?.generated_password}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={handleCopyPassword}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Copia password
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">
+                L&apos;utente dovrà cambiarla al primo accesso.
+              </p>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCloseSuccess}
+                className="rounded bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
+              >
+                Chiudi
+              </button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+
+      {/* Modal di creazione utente */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Nuovo utente</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -213,5 +309,6 @@ export function CreateUserModal({
         </form>
       </div>
     </div>
+    </>
   )
 }

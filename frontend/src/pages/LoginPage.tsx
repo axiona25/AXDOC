@@ -46,11 +46,7 @@ export function LoginPage() {
       }
       const loginRes = res as LoginResponse
       setUser(loginRes.user)
-      if (loginRes.must_change_password) {
-        navigate('/change-password')
-      } else {
-        navigate('/dashboard')
-      }
+      navigate('/dashboard')
     } catch (err: unknown) {
       const res = (err as { response?: { status: number; data?: unknown } })?.response
       if (res?.status === 423) {
@@ -135,6 +131,7 @@ export function LoginPage() {
         onSuccess={(user) => {
           setUser(user)
           setMfaPendingToken(null)
+          // La modale per cambio password obbligatorio apparirà automaticamente in App.tsx se necessario
           navigate('/dashboard')
         }}
         onClose={() => setMfaPendingToken(null)}

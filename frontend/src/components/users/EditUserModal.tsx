@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { User } from '../../types/auth'
-import { updateUser, type UpdateUserData } from '../../services/userService'
+import { updateUser, resetUserPassword, type UpdateUserData } from '../../services/userService'
 import type { OrganizationalUnit } from '../../services/organizationService'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -33,6 +33,8 @@ export function EditUserModal({
   const [selectedOuId, setSelectedOuId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [resetLoading, setResetLoading] = useState(false)
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -43,8 +45,23 @@ export function EditUserModal({
       setIs_active(user.is_active ?? true)
       setSelectedOuId(user?.organizational_unit?.id ?? '')
       setErrors({})
+      setGeneratedPassword(null)
     }
   }, [user, isOpen])
+
+  const handleResetPassword = async () => {
+    if (!user) return
+    if (!window.confirm("Sei sicuro di voler reimpostare la password? L'utente dovrà cambiarla al prossimo accesso.")) return
+    setResetLoading(true)
+    try {
+      const res = await resetUserPassword(user.id)
+      setGeneratedPassword(res.generated_password)
+    } catch {
+      alert("Errore durante il reset della password.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -199,6 +216,36 @@ export function EditUserModal({
             </select>
             {errors.organizational_unit_id && <p className="mt-1 text-xs text-red-600">{errors.organizational_unit_id}</p>}
           </div>
+          {/* Reset password */}
+          {generatedPassword ? (
+            <div className="mt-4 rounded border border-yellow-300 bg-yellow-50 p-3">
+              <p className="mb-1 text-sm font-semibold text-yellow-800">
+                ✅ Password temporanea generata:
+              </p>
+              <p className="select-all font-mono text-base text-yellow-900">{generatedPassword}</p>
+              <p className="mt-1 text-xs text-yellow-700">
+                Comunica questa password all&apos;utente. Dovrà cambiarla al primo accesso.
+              </p>
+              <button
+                type="button"
+                onClick={() => setGeneratedPassword(null)}
+                className="mt-2 text-xs text-yellow-600 underline"
+              >
+                Chiudi
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 border-t border-gray-200 pt-3">
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={resetLoading}
+                className="text-sm text-orange-600 underline hover:text-orange-800 disabled:opacity-50"
+              >
+                {resetLoading ? "Reimpostazione..." : "🔑 Reimposta password"}
+              </button>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
