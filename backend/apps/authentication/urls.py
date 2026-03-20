@@ -1,0 +1,34 @@
+from django.urls import path
+from .views import (
+    LoginView,
+    LogoutView,
+    RefreshTokenView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
+    ChangePasswordView,
+    InviteUserView,
+    AcceptInvitationView,
+    MFASetupInitView,
+    MFASetupConfirmView,
+    MFADisableView,
+    MFAVerifyView,
+    SSOInitView,
+    MeView,
+)
+
+urlpatterns = [
+    path("login/", LoginView.as_view()),
+    path("logout/", LogoutView.as_view()),
+    path("refresh/", RefreshTokenView.as_view()),
+    path("password-reset/", PasswordResetRequestView.as_view()),
+    path("password-reset/confirm/", PasswordResetConfirmView.as_view()),
+    path("change-password/", ChangePasswordView.as_view()),
+    path("mfa/setup/", MFASetupInitView.as_view()),
+    path("mfa/setup/confirm/", MFASetupConfirmView.as_view()),
+    path("mfa/disable/", MFADisableView.as_view()),
+    path("mfa/verify/", MFAVerifyView.as_view()),
+    path("sso/<str:provider>/", SSOInitView.as_view()),
+    path("invite/", InviteUserView.as_view()),
+    path("accept-invitation/<uuid:token>/", AcceptInvitationView.as_view()),
+    path("me/", MeView.as_view()),
+]

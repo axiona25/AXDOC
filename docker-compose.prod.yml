@@ -1,0 +1,47 @@
+# Override produzione: nginx, healthcheck, restart (FASE 15)
+# Uso: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - static_volume:/app/staticfiles:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://backend:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    restart: always
+    volumes:
+      - ./backend:/app
+      - backup_data:/backups
+      - static_volume:/app/staticfiles
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    restart: always
+
+  db:
+    restart: always
+
+  redis:
+    restart: always
+
+volumes:
+  static_volume:
+    external: false

@@ -1,0 +1,80 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-axdoc}
+      MYSQL_USER: ${MYSQL_USER:-axdoc}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-axdoc_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ./backend
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backup_data:/backups
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_PROXY_TARGET: http://backend:8000
+
+  celery_worker:
+    build: ./backend
+    command: celery -A config worker -l info --concurrency=2
+    volumes:
+      - ./backend:/app
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  celery_beat:
+    build: ./backend
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./backend:/app
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  redis_data:
+  backup_data:

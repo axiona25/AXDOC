@@ -1,0 +1,21 @@
+from django.contrib import admin
+from .models import OrganizationalUnit, OrganizationalUnitMembership
+
+
+class OrganizationalUnitMembershipInline(admin.TabularInline):
+    model = OrganizationalUnitMembership
+    extra = 0
+
+
+@admin.register(OrganizationalUnit)
+class OrganizationalUnitAdmin(admin.ModelAdmin):
+    list_display = ["code", "name", "parent", "is_active", "created_at"]
+    list_filter = ["is_active"]
+    search_fields = ["code", "name"]
+    inlines = [OrganizationalUnitMembershipInline]
+
+
+@admin.register(OrganizationalUnitMembership)
+class OrganizationalUnitMembershipAdmin(admin.ModelAdmin):
+    list_display = ["user", "organizational_unit", "role", "is_active", "joined_at"]
+    list_filter = ["role", "is_active"]
