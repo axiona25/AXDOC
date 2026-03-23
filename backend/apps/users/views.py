@@ -56,7 +56,21 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "create", "destroy", "deactivate", "reactivate", "import_template", "import_preview", "import_users", "create_manual", "change_type", "reset_password"):
+        if self.action in (
+            "list",
+            "create",
+            "destroy",
+            "deactivate",
+            "reactivate",
+            "import_template",
+            "import_preview",
+            "import_users",
+            "create_manual",
+            "change_type",
+            "reset_password",
+            "get_permissions_detail",
+            "set_permission",
+        ):
             return [IsAuthenticated(), IsAdminRole(), IsInternalUser()]
         return [IsAuthenticated(), IsAdminOrSelf()]
 
@@ -339,6 +353,104 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return Response(report)
 
+    @action(detail=True, methods=["get"], url_path="permissions")
+    def get_permissions_detail(self, request, pk=None):
+        """GET /api/users/{id}/permissions/ — lista permessi espliciti dell'utente su documenti e fascicoli."""
+        user = self.get_object()
+        from apps.documents.models import DocumentPermission
+        from apps.dossiers.models import DossierPermission
+
+        doc_perms = DocumentPermission.objects.filter(user=user).select_related("document")
+        dossier_perms = DossierPermission.objects.filter(user=user).select_related("dossier")
+
+        return Response({
+            "documents": [
+                {
+                    "document_id": str(dp.document_id),
+                    "document_title": dp.document.title if dp.document else "",
+                    "can_read": dp.can_read,
+                    "can_write": dp.can_write,
+                    "can_delete": dp.can_delete,
+                }
+                for dp in doc_perms
+            ],
+            "dossiers": [
+                {
+                    "dossier_id": str(dp.dossier_id),
+                    "dossier_title": dp.dossier.title if dp.dossier else "",
+                    "dossier_identifier": dp.dossier.identifier if dp.dossier else "",
+                    "can_read": dp.can_read,
+                    "can_write": dp.can_write,
+                }
+                for dp in dossier_perms
+            ],
+        })
+
+    @action(detail=True, methods=["post"], url_path="set_permission")
+    def set_permission(self, request, pk=None):
+        """
+        POST /api/users/{id}/set_permission/
+        Body: { "type": "document"|"dossier", "target_id": "uuid", "can_read": true, "can_write": false, "can_delete": false }
+        Per rimuovere: { "type": "document", "target_id": "uuid", "remove": true }
+        """
+        user = self.get_object()
+        perm_type = request.data.get("type")
+        target_id = request.data.get("target_id")
+        remove = request.data.get("remove", False)
+
+        if not perm_type or not target_id:
+            return Response({"detail": "type e target_id obbligatori."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if perm_type == "document":
+            from apps.documents.models import Document, DocumentPermission
+            doc = Document.objects.filter(pk=target_id, is_deleted=False).first()
+            if not doc:
+                return Response({"detail": "Documento non trovato."}, status=status.HTTP_400_BAD_REQUEST)
+            if remove:
+                DocumentPermission.objects.filter(document=doc, user=user).delete()
+                return Response({"removed": True})
+            existing = DocumentPermission.objects.filter(document=doc, user=user).first()
+            defaults = {
+                "can_read": request.data.get("can_read", True),
+                "can_write": request.data.get("can_write", False),
+                "can_delete": (
+                    request.data["can_delete"]
+                    if "can_delete" in request.data
+                    else (existing.can_delete if existing else False)
+                ),
+            }
+            perm, _ = DocumentPermission.objects.update_or_create(
+                document=doc,
+                user=user,
+                defaults=defaults,
+            )
+            return Response({
+                "set": True,
+                "can_read": perm.can_read,
+                "can_write": perm.can_write,
+                "can_delete": perm.can_delete,
+            })
+
+        if perm_type == "dossier":
+            from apps.dossiers.models import Dossier, DossierPermission
+            dossier = Dossier.objects.filter(pk=target_id, is_deleted=False).first()
+            if not dossier:
+                return Response({"detail": "Fascicolo non trovato."}, status=status.HTTP_400_BAD_REQUEST)
+            if remove:
+                DossierPermission.objects.filter(dossier=dossier, user=user).delete()
+                return Response({"removed": True})
+            perm, _ = DossierPermission.objects.update_or_create(
+                dossier=dossier,
+                user=user,
+                defaults={
+                    "can_read": request.data.get("can_read", True),
+                    "can_write": request.data.get("can_write", False),
+                },
+            )
+            return Response({"set": True, "can_read": perm.can_read, "can_write": perm.can_write})
+
+        return Response({"detail": "type deve essere document o dossier."}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class UserGroupViewSet(viewsets.ModelViewSet):
     """
@@ -358,6 +470,9 @@ class UserGroupViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(models.Q(name__icontains=search) | models.Q(description__icontains=search))
+        ou_id = self.request.query_params.get("ou")
+        if ou_id:
+            qs = qs.filter(organizational_unit_id=ou_id)
         return qs.order_by("name")
 
     def perform_destroy(self, instance):

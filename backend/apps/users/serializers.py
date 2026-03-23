@@ -255,13 +255,27 @@ class UserGroupMembershipSerializer(serializers.ModelSerializer):
 
 class UserGroupSerializer(serializers.ModelSerializer):
     members_count = serializers.SerializerMethodField()
+    organizational_unit_name = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGroup
-        fields = ["id", "name", "description", "created_at", "updated_at", "is_active", "members_count"]
+        fields = [
+            "id",
+            "name",
+            "description",
+            "organizational_unit",
+            "organizational_unit_name",
+            "created_at",
+            "updated_at",
+            "is_active",
+            "members_count",
+        ]
 
     def get_members_count(self, obj):
         return obj.memberships.count()
+
+    def get_organizational_unit_name(self, obj):
+        return obj.organizational_unit.name if obj.organizational_unit else None
 
 
 class UserGroupDetailSerializer(UserGroupSerializer):

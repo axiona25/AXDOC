@@ -66,7 +66,7 @@ export function ProtocolTable({
               <th className="px-3 py-2 text-left font-medium text-slate-700">Tipologia</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Mittente/Dest.</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">UO</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-700">Data</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-700">Data e ora</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Categoria</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Stato</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Firma</th>
@@ -94,7 +94,19 @@ export function ProtocolTable({
                 <td className="max-w-[150px] truncate px-3 py-2 text-slate-600" title={p.sender_receiver}>{p.sender_receiver || '—'}</td>
                 <td className="px-3 py-2 text-slate-600">{p.organizational_unit_name || '—'}</td>
                 <td className="px-3 py-2 text-slate-600">
-                  {p.registered_at ? new Date(p.registered_at).toLocaleDateString('it-IT') : '—'}
+                  {p.registered_at ? (
+                    <div>
+                      <span>{new Date(p.registered_at).toLocaleDateString('it-IT')}</span>
+                      <span className="ml-1 text-slate-400">
+                        {new Date(p.registered_at).toLocaleTimeString('it-IT', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">

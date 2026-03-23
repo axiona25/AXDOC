@@ -11,6 +11,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { UsersPage } from './pages/UsersPage'
 import { OrganizationsPage } from './pages/OrganizationsPage'
 import { GroupsPage } from './pages/GroupsPage'
+import { GroupDetailPage } from './pages/GroupDetailPage'
 import { LicensePage } from './pages/LicensePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -159,6 +160,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <GroupsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups/:id"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <GroupDetailPage />
             </ProtectedRoute>
           }
         />

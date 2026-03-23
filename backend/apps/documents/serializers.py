@@ -88,12 +88,13 @@ class DocumentAttachmentSerializer(serializers.ModelSerializer):
 
 class DocumentListSerializer(serializers.ModelSerializer):
     folder_id = serializers.SerializerMethodField()
+    folder_name = serializers.SerializerMethodField()
     created_by_email = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
         fields = [
-            "id", "title", "description", "folder_id", "status", "current_version",
+            "id", "title", "description", "folder_id", "folder_name", "status", "current_version",
             "created_by", "created_by_email", "created_at", "updated_at",
             "locked_by", "locked_at", "visibility", "owner",
         ]
@@ -101,6 +102,9 @@ class DocumentListSerializer(serializers.ModelSerializer):
 
     def get_folder_id(self, obj):
         return str(obj.folder_id) if obj.folder_id else None
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder else None
 
     def get_created_by_email(self, obj):
         return obj.created_by.email if obj.created_by else None

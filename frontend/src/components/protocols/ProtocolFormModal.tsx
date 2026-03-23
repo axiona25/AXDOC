@@ -5,6 +5,8 @@ import type { OrganizationalUnit } from '../../services/organizationService'
 import { getOrganizationalUnits } from '../../services/organizationService'
 import type { DocumentItem } from '../../services/documentService'
 import { getDocuments } from '../../services/documentService'
+import { getMailMessages } from '../../services/mailService'
+import type { MailMessageItem } from '../../services/mailService'
 import { getDossiers } from '../../services/dossierService'
 import type { DossierItem } from '../../services/dossierService'
 
@@ -65,6 +67,9 @@ export function ProtocolFormModal({
   const [attachmentIds, setAttachmentIds] = useState<string[]>([])
   const [availableDocs, setAvailableDocs] = useState<DocumentItem[]>([])
   const [fileFromPc, setFileFromPc] = useState<File | null>(null)
+  const [availableEmails, setAvailableEmails] = useState<MailMessageItem[]>([])
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
+  const [emailSearch, setEmailSearch] = useState('')
   const [ous, setOus] = useState<OrganizationalUnit[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,6 +88,9 @@ export function ProtocolFormModal({
       setDossierIds([])
       setAttachmentIds([])
       setFileFromPc(null)
+      setAvailableEmails([])
+      setSelectedEmailId(null)
+      setEmailSearch('')
       setError(null)
       setCreatedProtocol(null)
       setLoading(false)
@@ -91,6 +99,22 @@ export function ProtocolFormModal({
       getDocuments({ page: 1 }).then((r) => setAvailableDocs(r.results || [])).catch(() => setAvailableDocs([]))
     }
   }, [isOpen, linkedDocument])
+
+  useEffect(() => {
+    if (isOpen && (category === 'email' || category === 'pec')) {
+      getMailMessages({})
+        .then((r) => {
+          const msgs = r.results || []
+          const filtered = msgs.filter((m) => {
+            if (category === 'pec') return m.account_type === 'pec'
+            if (category === 'email') return m.account_type === 'email'
+            return true
+          })
+          setAvailableEmails(filtered)
+        })
+        .catch(() => setAvailableEmails([]))
+    }
+  }, [isOpen, category])
 
   const canGoNext = (): boolean => {
     if (step === 0) return !!subject.trim() && !!category
@@ -124,6 +148,10 @@ export function ProtocolFormModal({
         dossier_ids: dossierIds.length > 0 ? dossierIds : undefined,
       }
       if (linkedDocument) payload.document = linkedDocument.id
+
+      if ((category === 'email' || category === 'pec') && selectedEmailId) {
+        payload.notes = `${payload.notes || ''}\n[EMAIL_REF:${selectedEmailId}]`.trim()
+      }
 
       const result = await createProtocolWithFile(payload, fileFromPc || undefined)
       setCreatedProtocol({
@@ -324,42 +352,174 @@ export function ProtocolFormModal({
 
           {step === 3 && (
             <div className="flex flex-col gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Carica file dal PC</label>
-                <input type="file" onChange={(e) => setFileFromPc(e.target.files?.[0] || null)} className="w-full text-sm" />
-                {fileFromPc && <p className="mt-1 text-xs text-green-600">📎 {fileFromPc.name}</p>}
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Oppure allega dalla sezione Documenti</label>
-                {availableDocs.length === 0 ? (
-                  <p className="py-4 text-center text-slate-400">Nessun documento disponibile.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto rounded border border-slate-200">
-                    {availableDocs.map((doc) => (
-                      <label
-                        key={doc.id}
-                        className={`flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 hover:bg-slate-50 ${
-                          attachmentIds.includes(doc.id) ? 'bg-indigo-50' : ''
-                        }`}
-                      >
-                        <input type="checkbox" checked={attachmentIds.includes(doc.id)} onChange={() => toggleAttachment(doc.id)} />
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{doc.title}</p>
-                          <p className="text-xs text-slate-500">
-                            {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('it-IT') : ''}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
+              {(category === 'file' || category === 'other') && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">📤 Carica file dal PC</label>
+                    <input
+                      type="file"
+                      onChange={(e) => setFileFromPc(e.target.files?.[0] || null)}
+                      className="w-full text-sm"
+                    />
+                    {fileFromPc && <p className="mt-1 text-xs text-green-600">📎 {fileFromPc.name}</p>}
                   </div>
-                )}
-                {attachmentIds.length > 0 && (
-                  <p className="mt-1 text-xs text-indigo-600">
-                    {attachmentIds.length} allegat{attachmentIds.length === 1 ? 'o' : 'i'} selezionat
-                    {attachmentIds.length === 1 ? 'o' : 'i'}
-                  </p>
-                )}
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Oppure allega dalla sezione Documenti
+                    </label>
+                    {availableDocs.length === 0 ? (
+                      <p className="py-4 text-center text-slate-400">Nessun documento disponibile.</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto rounded border border-slate-200">
+                        {availableDocs.map((doc) => (
+                          <label
+                            key={doc.id}
+                            className={`flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 hover:bg-slate-50 ${
+                              attachmentIds.includes(doc.id) ? 'bg-indigo-50' : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={attachmentIds.includes(doc.id)}
+                              onChange={() => toggleAttachment(doc.id)}
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-slate-800">{doc.title}</p>
+                              <p className="text-xs text-slate-500">
+                                {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('it-IT') : ''}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {attachmentIds.length > 0 && (
+                      <p className="mt-1 text-xs text-indigo-600">
+                        {attachmentIds.length} allegat{attachmentIds.length === 1 ? 'o' : 'i'} selezionat
+                        {attachmentIds.length === 1 ? 'o' : 'i'}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {category === 'email' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    📧 Seleziona email da allegare al protocollo
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Cerca per oggetto o mittente..."
+                    value={emailSearch}
+                    onChange={(e) => setEmailSearch(e.target.value)}
+                    className="mb-2 w-full rounded border border-slate-300 px-3 py-1.5 text-sm"
+                  />
+                  {availableEmails.length === 0 ? (
+                    <p className="py-4 text-center text-slate-400">
+                      Nessuna email disponibile. Configura un account email nella sezione Posta.
+                    </p>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto rounded border border-slate-200">
+                      {availableEmails
+                        .filter(
+                          (em) =>
+                            !emailSearch.trim() ||
+                            em.subject.toLowerCase().includes(emailSearch.toLowerCase()) ||
+                            em.from_address.toLowerCase().includes(emailSearch.toLowerCase()) ||
+                            (em.from_name || '').toLowerCase().includes(emailSearch.toLowerCase()),
+                        )
+                        .map((em) => (
+                          <label
+                            key={em.id}
+                            className={`flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 hover:bg-slate-50 ${
+                              selectedEmailId === em.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="email-select"
+                              checked={selectedEmailId === em.id}
+                              onChange={() => setSelectedEmailId(em.id)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-slate-800">
+                                {em.subject || '(senza oggetto)'}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Da: {em.from_name || em.from_address} ·{' '}
+                                {em.sent_at ? new Date(em.sent_at).toLocaleString('it-IT') : ''}
+                                {em.has_attachments ? ' · 📎' : ''}
+                              </p>
+                            </div>
+                            <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800">📧</span>
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                  {selectedEmailId && <p className="mt-1 text-xs text-blue-600">✓ Email selezionata</p>}
+                </div>
+              )}
+
+              {category === 'pec' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    🔐 Seleziona PEC da allegare al protocollo
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Cerca per oggetto o mittente..."
+                    value={emailSearch}
+                    onChange={(e) => setEmailSearch(e.target.value)}
+                    className="mb-2 w-full rounded border border-slate-300 px-3 py-1.5 text-sm"
+                  />
+                  {availableEmails.length === 0 ? (
+                    <p className="py-4 text-center text-slate-400">
+                      Nessuna PEC disponibile. Configura un account PEC nella sezione Posta.
+                    </p>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto rounded border border-slate-200">
+                      {availableEmails
+                        .filter(
+                          (em) =>
+                            !emailSearch.trim() ||
+                            em.subject.toLowerCase().includes(emailSearch.toLowerCase()) ||
+                            em.from_address.toLowerCase().includes(emailSearch.toLowerCase()) ||
+                            (em.from_name || '').toLowerCase().includes(emailSearch.toLowerCase()),
+                        )
+                        .map((em) => (
+                          <label
+                            key={em.id}
+                            className={`flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 hover:bg-slate-50 ${
+                              selectedEmailId === em.id ? 'bg-purple-50' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="pec-select"
+                              checked={selectedEmailId === em.id}
+                              onChange={() => setSelectedEmailId(em.id)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-slate-800">
+                                {em.subject || '(senza oggetto)'}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Da: {em.from_name || em.from_address} ·{' '}
+                                {em.sent_at ? new Date(em.sent_at).toLocaleString('it-IT') : ''}
+                                {em.has_attachments ? ' · 📎' : ''}
+                              </p>
+                            </div>
+                            <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-800">
+                              🔐 PEC
+                            </span>
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                  {selectedEmailId && <p className="mt-1 text-xs text-purple-600">✓ PEC selezionata</p>}
+                </div>
+              )}
             </div>
           )}
 
@@ -411,7 +571,11 @@ export function ProtocolFormModal({
                       </div>
                       <div>
                         <span className="text-slate-500">Allegati:</span>{' '}
-                        {attachmentIds.length + (fileFromPc ? 1 : 0) || 'Nessuno'}
+                        {category === 'email' || category === 'pec'
+                          ? selectedEmailId
+                            ? '1 email selezionata'
+                            : 'Nessuna email'
+                          : `${attachmentIds.length + (fileFromPc ? 1 : 0) || 'Nessuno'}`}
                       </div>
                     </div>
                   </div>

@@ -90,7 +90,15 @@ class MailMessageViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        qs = MailMessage.objects.all().select_related("account")
+        qs = MailMessage.objects.all().select_related("account", "protocol")
+        from django.db.models import Q
+        from apps.users.permissions import is_admin_user, get_user_ou_ids
+
+        if not is_admin_user(self.request.user):
+            user_ou_ids = get_user_ou_ids(self.request.user)
+            qs = qs.filter(
+                Q(protocol__organizational_unit_id__in=user_ou_ids) | Q(protocol__isnull=True)
+            )
         account_id = self.request.query_params.get("account")
         if account_id:
             qs = qs.filter(account_id=account_id)

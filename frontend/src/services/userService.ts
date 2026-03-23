@@ -146,3 +146,39 @@ export function importUsers(file: File, sendInvite: boolean): Promise<ImportResu
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data)
 }
+
+// ─── Permessi utente ──────────────────────────────
+export interface UserPermissions {
+  documents: Array<{
+    document_id: string
+    document_title: string
+    can_read: boolean
+    can_write: boolean
+    can_delete: boolean
+  }>
+  dossiers: Array<{
+    dossier_id: string
+    dossier_title: string
+    dossier_identifier: string
+    can_read: boolean
+    can_write: boolean
+  }>
+}
+
+export function getUserPermissions(userId: string): Promise<UserPermissions> {
+  return api.get<UserPermissions>(`/api/users/${userId}/permissions/`).then((r) => r.data)
+}
+
+export function setUserPermission(
+  userId: string,
+  data: {
+    type: 'document' | 'dossier'
+    target_id: string
+    can_read?: boolean
+    can_write?: boolean
+    can_delete?: boolean
+    remove?: boolean
+  },
+): Promise<unknown> {
+  return api.post(`/api/users/${userId}/set_permission/`, data).then((r) => r.data)
+}

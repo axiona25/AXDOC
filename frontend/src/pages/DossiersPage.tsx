@@ -7,6 +7,7 @@ import type { DossierItem, DossierDetailItem, CreateDossierPayload } from '../se
 import { getDossiers, updateDossier, archiveDossier, deleteDossier } from '../services/dossierService'
 import { getDossier } from '../services/dossierService'
 import { getSignaturesByTarget } from '../services/signatureService'
+import { getUsers } from '../services/userService'
 
 export type SignatureBadgeStatus = 'pending' | 'completed' | 'rejected' | null
 
@@ -18,6 +19,7 @@ export function DossiersPage() {
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [editingDossier, setEditingDossier] = useState<DossierDetailItem | null>(null)
+  const [users, setUsers] = useState<{ id: string; email: string; first_name?: string; last_name?: string }[]>([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -49,6 +51,10 @@ export function DossiersPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    getUsers({}).then((r) => setUsers(r.results ?? [])).catch(() => setUsers([]))
+  }, [])
 
   const handleCreateSuccess = () => {
     load()
@@ -111,6 +117,7 @@ export function DossiersPage() {
           onClose={() => setEditingDossier(null)}
           onSubmit={handleUpdate}
           initial={editingDossier}
+          users={users}
         />
       ) : (
         <DossierCreateWizard

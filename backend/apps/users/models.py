@@ -120,6 +120,14 @@ class UserGroup(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
+    organizational_unit = models.ForeignKey(
+        "organizations.OrganizationalUnit",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="groups",
+        help_text="Unità organizzativa di appartenenza del gruppo.",
+    )
     created_by = models.ForeignKey(
         User,
         null=True,

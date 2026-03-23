@@ -2,6 +2,7 @@
 API Archivio e conservazione AGID (FASE 21).
 """
 import io
+from django.db.models import Q
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
@@ -34,7 +35,25 @@ class DocumentArchiveViewSet(viewsets.ReadOnlyModelViewSet):
         if stage:
             qs = qs.filter(stage=stage)
         if not _is_admin(self.request.user) and not _is_admin_or_approver(self.request.user):
-            qs = qs.filter(document__created_by=self.request.user)
+            from apps.users.permissions import get_user_ou_ids
+            from apps.organizations.models import OrganizationalUnitMembership
+
+            user_ou_ids = get_user_ou_ids(self.request.user)
+            user_ou_member_ids = list(
+                OrganizationalUnitMembership.objects.filter(
+                    organizational_unit_id__in=user_ou_ids, is_active=True
+                )
+                .values_list("user_id", flat=True)
+                .distinct()
+            )
+            qs = qs.filter(
+                Q(document__created_by=self.request.user)
+                | Q(document__owner=self.request.user)
+                | Q(
+                    document__owner_id__in=user_ou_member_ids,
+                    document__visibility="office",
+                )
+            )
         return qs.order_by("-updated_at")
 
     @action(detail=True, methods=["post"], url_path="move_to_deposit")

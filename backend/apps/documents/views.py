@@ -62,7 +62,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 Q(owner=self.request.user)
                 | Q(visibility=Document.VISIBILITY_OFFICE, owner_id__in=owner_ids_in_my_ou)
             ).distinct()
-            return qs
+            return qs.select_related("folder", "created_by")
         if section == "office":
             from apps.organizations.models import OrganizationalUnitMembership
             user_ou_ids = list(
@@ -80,14 +80,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 visibility=Document.VISIBILITY_OFFICE,
                 owner_id__in=owner_ids_in_my_ou,
             ).distinct()
-            return qs
+            return qs.select_related("folder", "created_by")
         qs = Document.objects.filter(is_deleted=False).filter(
             _documents_queryset_filter(self.request.user)
         ).distinct()
         visibility = self.request.query_params.get("visibility")
         if visibility in ("personal", "office", "shared"):
             qs = qs.filter(visibility=visibility)
-        return qs
+        return qs.select_related("folder", "created_by")
 
     def get_serializer_class(self):
         if self.action == "list":

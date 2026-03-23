@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react'
 import type { CreateDossierPayload, DossierDetailItem } from '../../services/dossierService'
 import { getMetadataStructures } from '../../services/metadataService'
 import type { MetadataStructure } from '../../types/metadata'
+import { getUsers } from '../../services/userService'
 import { DynamicMetadataForm } from '../metadata/DynamicMetadataForm'
+
+type FormUser = {
+  id: string
+  email: string
+  first_name?: string
+  last_name?: string
+  organizational_units?: Array<{ id: string; name: string; code: string }>
+}
 
 interface DossierFormModalProps {
   isOpen: boolean
@@ -10,7 +19,7 @@ interface DossierFormModalProps {
   onSubmit: (payload: CreateDossierPayload) => Promise<void>
   initial?: DossierDetailItem | null
   /** Per edit: lista utenti per select responsabile (opzionale) */
-  users?: { id: string; email: string; first_name?: string; last_name?: string }[]
+  users?: FormUser[]
 }
 
 export function DossierFormModal({
@@ -31,10 +40,17 @@ export function DossierFormModal({
   const [metadataStructures, setMetadataStructures] = useState<MetadataStructure[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadedUsers, setLoadedUsers] = useState<FormUser[]>([])
 
   useEffect(() => {
     if (isOpen) {
       getMetadataStructures({ applicable_to: 'dossier' }).then((r) => setMetadataStructures(r.results ?? []))
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      getUsers({}).then((r) => setLoadedUsers((r.results ?? []) as FormUser[])).catch(() => setLoadedUsers([]))
     }
   }, [isOpen])
 
@@ -63,6 +79,7 @@ export function DossierFormModal({
     }
   }, [initial, isOpen])
 
+  const effectiveUsers = users.length > 0 ? users : loadedUsers
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,15 +88,11 @@ export function DossierFormModal({
       setError('Titolo obbligatorio.')
       return
     }
-    if (!identifier.trim()) {
-      setError('Identificatore obbligatorio.')
-      return
-    }
     setLoading(true)
     try {
       await onSubmit({
         title: title.trim(),
-        identifier: identifier.trim(),
+        identifier: identifier.trim() || undefined,
         description: description.trim() || undefined,
         responsible: responsibleId || undefined,
         allowed_users: allowedUserIds.length ? allowedUserIds : undefined,
@@ -123,20 +136,32 @@ export function DossierFormModal({
               required
             />
           </div>
-          <div>
-            <label htmlFor="dossier-identifier" className="block text-sm font-medium text-slate-700">Identificatore *</label>
-            <input
-              id="dossier-identifier"
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              maxLength={100}
-              placeholder="es. CONTR-2024"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              required
-              readOnly={!!initial}
-            />
-          </div>
+          {initial ? (
+            <p className="text-xs text-slate-500">
+              Codice:{' '}
+              <span className="font-mono font-medium text-slate-700">
+                {identifier || initial.identifier || '—'}
+              </span>
+            </p>
+          ) : (
+            <div>
+              <label htmlFor="dossier-identifier" className="block text-sm font-medium text-slate-700">
+                Identificatore
+              </label>
+              <input
+                id="dossier-identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                maxLength={100}
+                placeholder="Lascia vuoto per generazione automatica"
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Se vuoto, verrà generato automaticamente (ANNO/UO/PROGRESSIVO).
+              </p>
+            </div>
+          )}
           <div>
             <label htmlFor="dossier-description" className="block text-sm font-medium text-slate-700">Descrizione</label>
             <textarea
@@ -155,10 +180,16 @@ export function DossierFormModal({
               onChange={(e) => setResponsibleId(e.target.value)}
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="">—</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.email} {u.first_name ? `(${u.first_name} ${u.last_name || ''})` : ''}</option>
-              ))}
+              <option value="">— Seleziona responsabile —</option>
+              {effectiveUsers.map((u) => {
+                const ous = u.organizational_units
+                const ouLabel = ous && ous.length > 0 ? ` [${ous.map((o) => o.name).join(', ')}]` : ''
+                return (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name} {u.last_name} ({u.email}){ouLabel}
+                  </option>
+                )
+              })}
             </select>
           </div>
           {metadataStructures.length > 0 && (

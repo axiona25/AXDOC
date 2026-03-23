@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { CreateDossierPayload } from '../../services/dossierService'
 import { createDossier } from '../../services/dossierService'
 import { getMetadataStructures } from '../../services/metadataService'
@@ -21,6 +21,9 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [responsibleId, setResponsibleId] = useState('')
+  const [responsibleSearch, setResponsibleSearch] = useState('')
+  const [responsibleDropdownOpen, setResponsibleDropdownOpen] = useState(false)
+  const responsibleRef = useRef<HTMLDivElement>(null)
   const [ouId, setOuId] = useState('')
   const [classificationCode, setClassificationCode] = useState('')
   const [classificationLabel, setClassificationLabel] = useState('')
@@ -29,7 +32,15 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
   const [metadataStructureId, setMetadataStructureId] = useState<string | null>(null)
   const [metadataValues, setMetadataValues] = useState<Record<string, unknown>>({})
   const [metadataStructures, setMetadataStructures] = useState<MetadataStructure[]>([])
-  const [users, setUsers] = useState<{ id: string; email: string; first_name?: string; last_name?: string }[]>([])
+  const [users, setUsers] = useState<
+    {
+      id: string
+      email: string
+      first_name?: string
+      last_name?: string
+      organizational_units?: Array<{ id: string; name: string; code: string }>
+    }[]
+  >([])
   const [ous, setOus] = useState<{ id: string; name: string; code: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +59,8 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
       setTitle('')
       setDescription('')
       setResponsibleId('')
+      setResponsibleSearch('')
+      setResponsibleDropdownOpen(false)
       setOuId('')
       setClassificationCode('')
       setClassificationLabel('')
@@ -228,7 +241,15 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
             {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{error}</div>}
             <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
               <p><strong>Oggetto:</strong> {title || '—'}</p>
-              <p><strong>Responsabile:</strong> {users.find((u) => u.id === responsibleId)?.email ?? '—'}</p>
+              <p>
+                <strong>Responsabile:</strong>{' '}
+                {(() => {
+                  const u = users.find((x) => x.id === responsibleId)
+                  if (!u) return '—'
+                  const ous = u.organizational_units
+                  return `${u.first_name || ''} ${u.last_name || ''} (${u.email})${ous && ous.length > 0 ? ` — UO: ${ous.map((o) => o.name).join(', ')}` : ''}`
+                })()}
+              </p>
               <p><strong>UO:</strong> {ou?.name ?? '—'}</p>
               <p><strong>Codice identificativo (anteprima):</strong> <span className="font-mono">{previewIdentifier}</span></p>
               {classificationCode && <p><strong>Classificazione:</strong> {classificationCode} {classificationLabel}</p>}

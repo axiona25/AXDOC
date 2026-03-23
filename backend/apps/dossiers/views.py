@@ -33,6 +33,7 @@ from .serializers import (
 from apps.documents.models import Document, Folder
 from apps.protocols.models import Protocol
 from apps.organizations.models import OrganizationalUnitMembership
+from apps.users.permissions import get_user_ou_ids
 
 
 def _user_can_access_dossier(user, dossier):
@@ -40,14 +41,20 @@ def _user_can_access_dossier(user, dossier):
         return True
     if dossier.responsible_id == user.id:
         return True
-    if DossierPermission.objects.filter(dossier=dossier, user=user).exists():
+    if dossier.created_by_id == user.id:
         return True
     ou_ids = set(
-        OrganizationalUnitMembership.objects.filter(user=user).values_list(
+        OrganizationalUnitMembership.objects.filter(user=user, is_active=True).values_list(
             "organizational_unit_id", flat=True
         )
     )
-    if DossierOUPermission.objects.filter(dossier=dossier, organizational_unit_id__in=ou_ids).exists():
+    if dossier.organizational_unit_id and dossier.organizational_unit_id in ou_ids:
+        return True
+    if DossierPermission.objects.filter(dossier=dossier, user=user, can_read=True).exists():
+        return True
+    if DossierOUPermission.objects.filter(
+        dossier=dossier, organizational_unit_id__in=ou_ids, can_read=True
+    ).exists():
         return True
     return False
 
@@ -87,10 +94,14 @@ class DossierViewSet(viewsets.ModelViewSet):
                 return qs
             user = self.request.user
             from django.db.models import Q
+
+            user_ou_ids = get_user_ou_ids(user)
             qs = qs.filter(
                 Q(responsible=user)
-                | Q(user_permissions__user=user)
-                | Q(ou_permissions__organizational_unit__memberships__user=user)
+                | Q(created_by=user)
+                | Q(user_permissions__user=user, user_permissions__can_read=True)
+                | Q(ou_permissions__organizational_unit_id__in=user_ou_ids, ou_permissions__can_read=True)
+                | Q(organizational_unit_id__in=user_ou_ids)
             ).distinct()
         return qs
 
@@ -346,7 +357,16 @@ class DossierViewSet(viewsets.ModelViewSet):
         proto_id = request.data.get("protocol_id")
         if not proto_id:
             return Response({"protocol_id": "Obbligatorio."}, status=status.HTTP_400_BAD_REQUEST)
-        protocol = Protocol.objects.filter(pk=proto_id).first()
+        proto_id = str(proto_id).strip()
+        protocol = None
+        try:
+            protocol = Protocol.objects.filter(pk=proto_id).first()
+        except (ValueError, Exception):
+            pass
+        if not protocol:
+            protocol = Protocol.objects.filter(protocol_id=proto_id).first()
+        if not protocol:
+            protocol = Protocol.objects.filter(protocol_number=proto_id).first()
         if not protocol:
             return Response({"protocol_id": "Protocollo non trovato."}, status=status.HTTP_400_BAD_REQUEST)
         _, created = DossierProtocol.objects.get_or_create(

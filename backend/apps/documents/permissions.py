@@ -15,11 +15,32 @@ def _documents_queryset_filter(user):
     if getattr(user, "role", None) == "ADMIN":
         return Q()
     from apps.organizations.models import OrganizationalUnitMembership
-    user_ou_ids = list(
-        OrganizationalUnitMembership.objects.filter(user=user).values_list("organizational_unit_id", flat=True)
+    from apps.users.permissions import get_user_ou_ids
+    from .models import Document, DocumentPermission, DocumentOUPermission
+
+    user_ou_ids = get_user_ou_ids(user)
+    user_ou_member_ids = list(
+        OrganizationalUnitMembership.objects.filter(
+            organizational_unit_id__in=user_ou_ids, is_active=True
+        )
+        .values_list("user_id", flat=True)
+        .distinct()
     )
-    return Q(created_by=user) | Q(user_permissions__user=user, user_permissions__can_read=True) | Q(
-        ou_permissions__organizational_unit_id__in=user_ou_ids, ou_permissions__can_read=True
+    explicit_doc_ids = set(
+        DocumentPermission.objects.filter(user=user, can_read=True).values_list("document_id", flat=True)
+    )
+    ou_doc_ids = set(
+        DocumentOUPermission.objects.filter(
+            organizational_unit_id__in=user_ou_ids, can_read=True
+        ).values_list("document_id", flat=True)
+    )
+    allowed_ids = explicit_doc_ids | ou_doc_ids
+    return (
+        Q(owner=user)
+        | Q(created_by=user)
+        | Q(visibility=Document.VISIBILITY_OFFICE, owner_id__in=user_ou_member_ids)
+        | Q(visibility=Document.VISIBILITY_SHARED)
+        | Q(pk__in=allowed_ids)
     )
 
 
@@ -29,7 +50,8 @@ class CanAccessDocument(permissions.BasePermission):
     - è in DocumentPermission (can_read) O
     - appartiene a una UO in DocumentOUPermission (can_read) O
     - è ADMIN O
-    - ha creato il documento (created_by).
+    - è owner / created_by O
+    - visibilità shared O office (stessa UO del proprietario)
     """
 
     def has_object_permission(self, request, view, obj):
@@ -45,12 +67,24 @@ class CanAccessDocument(permissions.BasePermission):
         # Utenti ospiti: solo documenti con permesso esplicito (FASE 17)
         if getattr(user, "user_type", "internal") == "guest":
             return obj.user_permissions.filter(user=user, can_read=True).exists()
-        if obj.created_by_id == user.id:
+        if obj.owner_id == user.id or obj.created_by_id == user.id:
+            return True
+        if obj.visibility == Document.VISIBILITY_SHARED:
             return True
         if obj.user_permissions.filter(user=user, can_read=True).exists():
             return True
         from apps.organizations.models import OrganizationalUnitMembership
-        user_ou_ids = OrganizationalUnitMembership.objects.filter(user=user).values_list("organizational_unit_id", flat=True)
+        from apps.users.permissions import get_user_ou_ids
+
+        user_ou_ids = get_user_ou_ids(user)
         if obj.ou_permissions.filter(organizational_unit_id__in=user_ou_ids, can_read=True).exists():
             return True
+        if obj.visibility == Document.VISIBILITY_OFFICE:
+            peer_ids = set(
+                OrganizationalUnitMembership.objects.filter(
+                    organizational_unit_id__in=user_ou_ids, is_active=True
+                ).values_list("user_id", flat=True)
+            )
+            if obj.owner_id and obj.owner_id in peer_ids:
+                return True
         return False

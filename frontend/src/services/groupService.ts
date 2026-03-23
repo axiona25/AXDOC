@@ -4,6 +4,8 @@ export interface UserGroup {
   id: string
   name: string
   description: string
+  organizational_unit: string | null
+  organizational_unit_name: string | null
   created_at: string
   updated_at: string
   is_active: boolean
@@ -25,7 +27,7 @@ export interface GroupsResponse {
   previous: string | null
 }
 
-export function getGroups(params?: { search?: string }): Promise<GroupsResponse> {
+export function getGroups(params?: { search?: string; ou?: string }): Promise<GroupsResponse> {
   return api.get('/api/groups/', { params }).then((r) => r.data)
 }
 
@@ -33,11 +35,18 @@ export function getGroup(id: string): Promise<UserGroup & { members: UserGroupMe
   return api.get(`/api/groups/${id}/`).then((r) => r.data)
 }
 
-export function createGroup(data: { name: string; description?: string }): Promise<UserGroup> {
+export function createGroup(data: {
+  name: string
+  description?: string
+  organizational_unit?: string
+}): Promise<UserGroup> {
   return api.post('/api/groups/', data).then((r) => r.data)
 }
 
-export function updateGroup(id: string, data: { name?: string; description?: string }): Promise<UserGroup> {
+export function updateGroup(
+  id: string,
+  data: { name?: string; description?: string; organizational_unit?: string | null },
+): Promise<UserGroup> {
   return api.patch(`/api/groups/${id}/`, data).then((r) => r.data)
 }
 

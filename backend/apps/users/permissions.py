@@ -24,3 +24,21 @@ class IsAdminOrSelf(permissions.BasePermission):
         if request.user.role == "ADMIN":
             return True
         return obj == request.user
+
+
+def get_user_ou_ids(user):
+    """Ritorna il set di UO ID a cui l'utente appartiene (membership attive)."""
+    if not user or not user.is_authenticated:
+        return set()
+    from apps.organizations.models import OrganizationalUnitMembership
+
+    return set(
+        OrganizationalUnitMembership.objects.filter(user=user, is_active=True).values_list(
+            "organizational_unit_id", flat=True
+        )
+    )
+
+
+def is_admin_user(user):
+    """Verifica se l'utente è ADMIN."""
+    return user and user.is_authenticated and getattr(user, "role", None) == "ADMIN"

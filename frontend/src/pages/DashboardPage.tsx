@@ -65,7 +65,6 @@ export function DashboardPage() {
             <>
               <Link to="/metadata" className="text-sm text-indigo-600 hover:underline md:text-base">Metadati</Link>
               <Link to="/users" className="text-sm text-indigo-600 hover:underline md:text-base">Utenti</Link>
-              <Link to="/groups" className="text-sm text-indigo-600 hover:underline md:text-base">Gruppi</Link>
               <Link to="/organizations" className="text-sm text-indigo-600 hover:underline md:text-base">Organizzazioni</Link>
               <Link to="/settings" className="text-sm text-indigo-600 hover:underline md:text-base">Impostazioni</Link>
               <Link to="/admin/license" className="text-sm text-indigo-600 hover:underline md:text-base">Licenza</Link>

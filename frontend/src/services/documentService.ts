@@ -48,6 +48,8 @@ export interface DocumentItem {
   title: string
   description: string
   folder_id: string | null
+  folder?: string | null
+  folder_name?: string | null
   status: string
   current_version: number
   created_by: string | null
