@@ -253,7 +253,7 @@ export function WorkflowBuilderPage() {
                     </div>
                     <div className="flex gap-2">
                       <button type="button" onClick={handlePublish} className={`rounded px-3 py-1.5 text-sm font-medium ${selectedTemplate.is_published ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                        {selectedTemplate.is_published ? 'Ritira bozza' : 'Pubblica'}
+                        {selectedTemplate.is_published ? 'Sospendi pubblicazione' : 'Pubblica'}
                       </button>
                       <button type="button" onClick={() => handleDeleteTemplate(selectedTemplate.id)} className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
                         Elimina

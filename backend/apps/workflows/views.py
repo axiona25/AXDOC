@@ -237,6 +237,19 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             if assignees:
                 si.assigned_to.set(assignees)
 
+        # Assicura accesso in lettura al documento per tutti gli assegnatari
+        from apps.documents.models import DocumentPermission
+
+        all_assignee_ids = set()
+        for si in instance.step_instances.all():
+            all_assignee_ids.update(si.assigned_to.values_list("pk", flat=True))
+        for user_id in all_assignee_ids:
+            DocumentPermission.objects.get_or_create(
+                document=document,
+                user_id=user_id,
+                defaults={"can_read": True, "can_write": False, "can_delete": False},
+            )
+
         # Attiva il primo step
         first_si = instance.step_instances.filter(step__order=instance.current_step_order).first()
         if first_si:
@@ -330,6 +343,15 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
                 next_si.status = "in_progress"
                 next_si.started_at = timezone.now()
                 next_si.save(update_fields=["status", "started_at"])
+                # Accesso lettura per nuovi assegnatari
+                from apps.documents.models import DocumentPermission
+
+                for uid in next_si.assigned_to.values_list("pk", flat=True):
+                    DocumentPermission.objects.get_or_create(
+                        document=instance.document,
+                        user_id=uid,
+                        defaults={"can_read": True, "can_write": False, "can_delete": False},
+                    )
                 notify_step_completed(current_si, request.user)
                 notify_step_assigned(next_si)
             else:

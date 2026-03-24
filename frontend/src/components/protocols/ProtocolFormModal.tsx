@@ -9,6 +9,8 @@ import { getMailMessages } from '../../services/mailService'
 import type { MailMessageItem } from '../../services/mailService'
 import { getDossiers } from '../../services/dossierService'
 import type { DossierItem } from '../../services/dossierService'
+import { getUsers } from '../../services/userService'
+import type { User } from '../../types/auth'
 
 interface ProtocolFormModalProps {
   isOpen: boolean
@@ -60,6 +62,7 @@ export function ProtocolFormModal({
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('file')
   const [senderReceiver, setSenderReceiver] = useState('')
+  const [recipientMode, setRecipientMode] = useState<'internal' | 'external'>('internal')
   const [organizationalUnitId, setOrganizationalUnitId] = useState('')
   const [notes, setNotes] = useState('')
   const [dossierIds, setDossierIds] = useState<string[]>([])
@@ -71,6 +74,7 @@ export function ProtocolFormModal({
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
   const [emailSearch, setEmailSearch] = useState('')
   const [ous, setOus] = useState<OrganizationalUnit[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [createdProtocol, setCreatedProtocol] = useState<{ protocol_id: string; registered_at: string } | null>(null)
@@ -83,6 +87,7 @@ export function ProtocolFormModal({
       setDescription('')
       setCategory('file')
       setSenderReceiver('')
+      setRecipientMode('internal')
       setOrganizationalUnitId('')
       setNotes('')
       setDossierIds([])
@@ -116,9 +121,24 @@ export function ProtocolFormModal({
     }
   }, [isOpen, category])
 
+  useEffect(() => {
+    getUsers({}).then((r) => setAllUsers(r.results ?? [])).catch(() => {})
+  }, [])
+
+  const userBelongsToOu = (u: User, ouId: string): boolean => {
+    if (!ouId) return true
+    if (u.organizational_unit && String(u.organizational_unit.id) === String(ouId)) return true
+    const list = u.organizational_units ?? []
+    return list.some((x) => String(x.id) === String(ouId))
+  }
+
   const canGoNext = (): boolean => {
     if (step === 0) return !!subject.trim() && !!category
-    if (step === 1) return !!organizationalUnitId
+    if (step === 1) {
+      if (!organizationalUnitId) return false
+      if (direction === 'out' && !senderReceiver.trim()) return false
+      return true
+    }
     return true
   }
 
@@ -281,22 +301,13 @@ export function ProtocolFormModal({
           {step === 1 && (
             <div className="flex flex-col gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  {direction === 'in' ? 'Mittente' : 'Destinatario'}
-                </label>
-                <input
-                  type="text"
-                  value={senderReceiver}
-                  onChange={(e) => setSenderReceiver(e.target.value)}
-                  maxLength={500}
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Unità organizzativa *</label>
                 <select
                   value={organizationalUnitId}
-                  onChange={(e) => setOrganizationalUnitId(e.target.value)}
+                  onChange={(e) => {
+                    setOrganizationalUnitId(e.target.value)
+                    if (direction === 'out') setSenderReceiver('')
+                  }}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option value="">Seleziona U.O.</option>
@@ -307,6 +318,77 @@ export function ProtocolFormModal({
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  {direction === 'in' ? 'Mittente' : 'Destinatario'}
+                </label>
+                {direction === 'out' ? (
+                  <>
+                    <div className="mb-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSenderReceiver('')
+                          setRecipientMode('internal')
+                        }}
+                        className={`rounded px-3 py-1 text-xs font-medium ${recipientMode === 'internal' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                      >
+                        Utente interno
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSenderReceiver('')
+                          setRecipientMode('external')
+                        }}
+                        className={`rounded px-3 py-1 text-xs font-medium ${recipientMode === 'external' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                      >
+                        Contatto esterno
+                      </button>
+                    </div>
+
+                    {recipientMode === 'internal' ? (
+                      <select
+                        value={senderReceiver}
+                        onChange={(e) => setSenderReceiver(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">Seleziona destinatario...</option>
+                        {allUsers
+                          .filter((u) => !organizationalUnitId || userBelongsToOu(u, organizationalUnitId))
+                          .map((u) => {
+                            const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+                            return (
+                              <option key={u.id} value={fullName || u.email}>
+                                {fullName ? `${fullName} (${u.email})` : u.email}
+                              </option>
+                            )
+                          })}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={senderReceiver}
+                        onChange={(e) => setSenderReceiver(e.target.value)}
+                        maxLength={500}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Nome o email del destinatario esterno"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={senderReceiver}
+                    onChange={(e) => setSenderReceiver(e.target.value)}
+                    maxLength={500}
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Nome o email del mittente"
+                  />
+                )}
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Note</label>
                 <textarea

@@ -124,7 +124,7 @@ export function DocumentViewer({ documentId, onClose, showHeader = true }: Docum
       )}
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewerType === 'pdf' && blobUrl && (
-          <PdfViewer url={blobUrl} fileName={fileName} onDownload={handleDownload} />
+          <PdfViewer url={blobUrl} fileName={fileName} />
         )}
         {viewerType === 'office' && blobUrl && (
           <OfficeViewer url={blobUrl} fileName={fileName} originalFormat={mimeType} onDownload={handleDownload} />
