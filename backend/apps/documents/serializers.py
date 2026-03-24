@@ -73,7 +73,7 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentVersion
         fields = [
-            "id", "version_number", "file_name", "file_size", "file_type",
+            "id", "version_number", "file_name", "file_size", "file_type", "thumbnail",
             "created_by", "created_at", "change_description", "is_current",
         ]
         read_only_fields = fields
@@ -90,6 +90,7 @@ class DocumentListSerializer(serializers.ModelSerializer):
     folder_id = serializers.SerializerMethodField()
     folder_name = serializers.SerializerMethodField()
     created_by_email = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -97,8 +98,19 @@ class DocumentListSerializer(serializers.ModelSerializer):
             "id", "title", "description", "folder_id", "folder_name", "status", "current_version",
             "created_by", "created_by_email", "created_at", "updated_at",
             "locked_by", "locked_at", "visibility", "owner",
+            "thumbnail",
         ]
         read_only_fields = fields
+
+    def get_thumbnail(self, obj):
+        latest = obj.versions.order_by("-version_number").first()
+        if latest and latest.thumbnail:
+            request = self.context.get("request")
+            url = latest.thumbnail.url
+            if request:
+                return request.build_absolute_uri(url)
+            return url
+        return None
 
     def get_folder_id(self, obj):
         return str(obj.folder_id) if obj.folder_id else None

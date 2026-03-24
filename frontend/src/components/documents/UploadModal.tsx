@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { FolderItem } from '../../services/documentService'
 import type { MetadataStructure, MetadataValues } from '../../types/metadata'
 import { DynamicMetadataForm } from '../metadata/DynamicMetadataForm'
+import { compressImage } from '../../utils/imageCompressor'
 
 const MAX_SIZE_MB = 200
 
@@ -50,6 +51,7 @@ export function UploadModal({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [compressing, setCompressing] = useState(false)
 
   const reset = useCallback(() => {
     setTitle('')
@@ -63,10 +65,11 @@ export function UploadModal({
     setProgress(0)
     setError('')
     setUploading(false)
+    setCompressing(false)
   }, [defaultFolderId])
 
   const handleClose = () => {
-    if (!uploading) {
+    if (!uploading && !compressing) {
       reset()
       onClose()
     }
@@ -109,10 +112,30 @@ export function UploadModal({
     }
   }
 
-  const handleFileChange = (f: File | null) => {
-    setFile(f)
-    if (f && !title) setTitle(f.name)
+  const handleFileChange = async (f: File | null) => {
+    if (!f) {
+      setFile(null)
+      return
+    }
     setError('')
+
+    // Comprimi immagini automaticamente
+    if (f.type.startsWith('image/') && f.type !== 'image/gif' && f.type !== 'image/svg+xml') {
+      setCompressing(true)
+      try {
+        const compressed = await compressImage(f)
+        setFile(compressed)
+        if (!title) setTitle(compressed.name)
+      } catch {
+        setFile(f)
+        if (!title) setTitle(f.name)
+      } finally {
+        setCompressing(false)
+      }
+    } else {
+      setFile(f)
+      if (!title) setTitle(f.name)
+    }
   }
 
   const displayProgress = externalProgress ?? progress
@@ -127,7 +150,7 @@ export function UploadModal({
           <button
             type="button"
             onClick={handleClose}
-            disabled={uploading}
+            disabled={uploading || compressing}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
             aria-label="Chiudi"
           >
@@ -159,6 +182,9 @@ export function UploadModal({
                 <p className="text-sm text-slate-500">Trascina un file qui o clicca per selezionare</p>
               )}
             </label>
+            {compressing && (
+              <p className="mt-2 text-xs text-indigo-600">⏳ Compressione immagine in corso...</p>
+            )}
           </div>
           <div className="mb-3">
             <label htmlFor="upload-title" className="mb-1 block text-sm font-medium text-slate-700">Titolo</label>
@@ -270,14 +296,14 @@ export function UploadModal({
             <button
               type="button"
               onClick={handleClose}
-              disabled={uploading}
+              disabled={uploading || compressing}
               className="rounded bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 disabled:opacity-50"
             >
               Annulla
             </button>
             <button
               type="submit"
-              disabled={!file || uploading}
+              disabled={!file || uploading || compressing}
               className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {uploading ? 'Caricamento...' : 'Carica'}

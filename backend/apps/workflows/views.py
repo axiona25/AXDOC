@@ -19,6 +19,13 @@ from .serializers import (
     WorkflowInstanceSerializer,
 )
 from .services import WorkflowService
+from .notifications import (
+    notify_step_assigned,
+    notify_step_completed,
+    notify_step_rejected,
+    notify_workflow_cancelled,
+    notify_workflow_completed,
+)
 from apps.users.permissions import IsAdminRole
 
 
@@ -236,6 +243,7 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             first_si.status = "in_progress"
             first_si.started_at = timezone.now()
             first_si.save(update_fields=["status", "started_at"])
+            notify_step_assigned(first_si)
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -298,6 +306,7 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             instance.status = "rejected"
             instance.completed_at = timezone.now()
             instance.save(update_fields=["status", "completed_at"])
+            notify_step_rejected(current_si, request.user)
         else:
             # Trova il prossimo step
             next_steps = instance.step_instances.filter(
@@ -321,11 +330,15 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
                 next_si.status = "in_progress"
                 next_si.started_at = timezone.now()
                 next_si.save(update_fields=["status", "started_at"])
+                notify_step_completed(current_si, request.user)
+                notify_step_assigned(next_si)
             else:
                 # Tutti gli step completati → workflow completato
                 instance.status = "completed"
                 instance.completed_at = timezone.now()
                 instance.save(update_fields=["status", "completed_at"])
+                notify_step_completed(current_si, request.user)
+                notify_workflow_completed(instance)
 
         # Ricarica e ritorna
         instance.refresh_from_db()
@@ -357,6 +370,7 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
         instance.status = "cancelled"
         instance.completed_at = timezone.now()
         instance.save(update_fields=["status", "completed_at"])
+        notify_workflow_cancelled(instance, request.user)
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)

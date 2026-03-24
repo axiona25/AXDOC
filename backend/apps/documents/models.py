@@ -195,6 +195,7 @@ class DocumentVersion(models.Model):
     file_name = models.CharField(max_length=500, default="")
     file_size = models.BigIntegerField(default=0)
     file_type = models.CharField(max_length=255, default="")
+    thumbnail = models.ImageField(upload_to="thumbnails/%Y/%m/", blank=True, null=True)
     checksum = models.CharField(max_length=64, default="")
     created_by = models.ForeignKey(
         _user_model(),

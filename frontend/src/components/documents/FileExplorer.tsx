@@ -259,7 +259,7 @@ export function FileExplorer() {
           </div>
         </div>
         {detailDoc && (
-          <div className="w-96 shrink-0">
+          <div className="w-[480px] shrink-0">
             <DocumentDetailPanel
               document={detailDoc}
               onClose={() => setDetailDoc(null)}

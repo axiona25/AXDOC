@@ -193,6 +193,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
             is_current=True,
         )
         version.file.save(file_obj.name or "file", file_obj, save=True)
+        from apps.documents.tasks import process_uploaded_file
+
+        process_uploaded_file.delay(str(version.pk))
         allowed_users = request.data.get("allowed_users")
         if isinstance(allowed_users, str):
             import json
@@ -546,6 +549,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
             is_current=True,
         )
         new_version.file.save(file_obj.name or "file", file_obj, save=True)
+        from apps.documents.tasks import process_uploaded_file
+
+        process_uploaded_file.delay(str(new_version.pk))
         document.current_version = next_num
         document.updated_at = timezone.now()
         document.save(update_fields=["current_version", "updated_at"])
