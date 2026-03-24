@@ -76,7 +76,7 @@ export function OrganizationsPage() {
               }}
               className="rounded bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
             >
-              Nuova UO
+              Nuova U.O.
             </button>
           </div>
         </div>
@@ -89,7 +89,7 @@ export function OrganizationsPage() {
               checked={!mineOnly}
               onChange={() => setMineOnly(false)}
             />
-            Tutte le UO
+            Tutte le U.O.
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -97,7 +97,7 @@ export function OrganizationsPage() {
               checked={mineOnly}
               onChange={() => setMineOnly(true)}
             />
-            Le mie UO
+            Le mie U.O.
           </label>
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

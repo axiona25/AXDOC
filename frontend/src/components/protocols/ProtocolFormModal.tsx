@@ -299,7 +299,7 @@ export function ProtocolFormModal({
                   onChange={(e) => setOrganizationalUnitId(e.target.value)}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 >
-                  <option value="">Seleziona UO</option>
+                  <option value="">Seleziona U.O.</option>
                   {ous.map((ou) => (
                     <option key={ou.id} value={ou.id}>
                       {ou.name} ({ou.code})
@@ -559,7 +559,7 @@ export function ProtocolFormModal({
                         {senderReceiver || '—'}
                       </div>
                       <div>
-                        <span className="text-slate-500">UO:</span> {ouName}
+                        <span className="text-slate-500">U.O.:</span> {ouName}
                       </div>
                       {notes && (
                         <div className="col-span-2">

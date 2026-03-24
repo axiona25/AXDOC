@@ -112,7 +112,7 @@ export function GroupsPage() {
             onChange={(e) => setOuFilter(e.target.value)}
             className="rounded border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="">Tutte le UO</option>
+            <option value="">Tutte le U.O.</option>
             {organizations.map((ou) => (
               <option key={ou.id} value={ou.id}>
                 {ou.name} ({ou.code})
@@ -249,7 +249,7 @@ export function GroupsPage() {
                   onChange={(e) => setNewOuId(e.target.value)}
                   className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 >
-                  <option value="">— Seleziona UO —</option>
+                  <option value="">— Seleziona U.O. —</option>
                   {organizations.map((ou) => (
                     <option key={ou.id} value={ou.id}>
                       {ou.name} ({ou.code})

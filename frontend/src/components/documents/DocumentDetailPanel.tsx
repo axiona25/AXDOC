@@ -28,6 +28,7 @@ import { ShareModal } from '../sharing/ShareModal'
 import { getDocumentActivity } from '../../services/auditService'
 import type { AuditLogItem } from '../../services/auditService'
 import { ActivityTimeline } from '../audit/ActivityTimeline'
+import { WorkflowTab } from './WorkflowTab'
 import { DocumentChatButton } from '../chat/DocumentChatButton'
 import { useAuthStore } from '../../store/authStore'
 import { VersionHistoryModal } from './VersionHistoryModal'
@@ -48,7 +49,7 @@ export function DocumentDetailPanel({
   onNewVersion,
   onVisualize,
 }: DocumentDetailPanelProps) {
-  const [tab, setTab] = useState<'info' | 'versions' | 'attachments' | 'metadata' | 'protocols' | 'signatures' | 'conservation' | 'sharing' | 'activity' | 'permissions'>('info')
+  const [tab, setTab] = useState<'info' | 'versions' | 'attachments' | 'metadata' | 'protocols' | 'signatures' | 'conservation' | 'sharing' | 'activity' | 'workflow' | 'permissions'>('info')
   const [versions, setVersions] = useState<DocumentVersionItem[]>(doc?.versions ?? [])
   const [attachments, setAttachments] = useState<DocumentItem['attachments']>(doc?.attachments ?? [])
   const [metadataStructure, setMetadataStructure] = useState<MetadataStructure | null>(null)
@@ -172,6 +173,7 @@ export function DocumentDetailPanel({
     { id: 'conservation' as const, label: 'Conservazione' },
     { id: 'sharing' as const, label: 'Condivisioni' },
     { id: 'activity' as const, label: 'Attività' },
+    { id: 'workflow' as const, label: 'Workflow' },
     ...(user?.role === 'ADMIN' ? [{ id: 'permissions' as const, label: 'Permessi' }] : []),
   ]
 
@@ -489,6 +491,9 @@ export function DocumentDetailPanel({
             <div className="space-y-3 text-sm">
               <ActivityTimeline items={activityList} />
             </div>
+          )}
+          {tab === 'workflow' && doc && (
+            <WorkflowTab documentId={doc.id} />
           )}
           {tab === 'permissions' && (
             <p className="text-sm text-slate-600">Gestione permessi (solo metadati: can_read, can_write, can_delete).</p>

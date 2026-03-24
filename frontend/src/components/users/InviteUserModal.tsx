@@ -106,7 +106,7 @@ export function InviteUserModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Ruolo nella UO</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Ruolo nella U.O.</label>
             <select className="w-full rounded border border-slate-300 px-3 py-2" {...register('ou_role')}>
               <option value="OPERATOR">Operatore</option>
               <option value="REVIEWER">Revisore</option>

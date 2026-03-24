@@ -7,7 +7,7 @@ router.register(r"templates", WorkflowTemplateViewSet, basename="workflowtemplat
 router.register(r"instances", WorkflowInstanceViewSet, basename="workflowinstance")
 
 urlpatterns = [
-    path("", include(router.urls)),
+    # Step nested sotto template — PRIMA del router per avere priorità
     path(
         "templates/<uuid:template_pk>/steps/",
         WorkflowStepViewSet.as_view({"get": "list", "post": "create"}),
@@ -18,4 +18,6 @@ urlpatterns = [
         WorkflowStepViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}),
         name="workflowstep-detail",
     ),
+    # Router (templates + instances)
+    path("", include(router.urls)),
 ]

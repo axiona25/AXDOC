@@ -43,7 +43,7 @@ export function GroupDetailPage() {
         ) : (
           <>
             <h1 className="mt-4 text-xl font-bold text-slate-800">{name}</h1>
-            {ouName && <p className="text-sm text-slate-500">UO: {ouName}</p>}
+            {ouName && <p className="text-sm text-slate-500">U.O.: {ouName}</p>}
             {description && <p className="mt-2 text-sm text-slate-600">{description}</p>}
             <h2 className="mt-6 text-sm font-semibold text-slate-700">Membri</h2>
             <ul className="mt-2 space-y-2">

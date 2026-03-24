@@ -46,6 +46,7 @@ export function DashboardPage() {
           <GlobalSearchBar />
           <Link to="/search" className="text-sm text-indigo-600 hover:underline md:text-base">Ricerca</Link>
           <Link to="/documents" className="text-sm text-indigo-600 hover:underline md:text-base">Documenti</Link>
+          <Link to="/workflows" className="text-sm text-indigo-600 hover:underline md:text-base">Workflow</Link>
           <Link to="/mail" className="text-sm text-indigo-600 hover:underline md:text-base">Posta</Link>
           <button
             type="button"

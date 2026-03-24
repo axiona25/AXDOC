@@ -16,6 +16,7 @@ import { LicensePage } from './pages/LicensePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { DocumentsPage } from './pages/DocumentsPage'
+import { WorkflowBuilderPage } from './pages/WorkflowBuilderPage'
 import { MetadataPage } from './pages/MetadataPage'
 import { ProtocolsPage } from './pages/ProtocolsPage'
 import { ProtocolDetailPage } from './pages/ProtocolDetailPage'
@@ -80,6 +81,14 @@ function App() {
           element={
             <ProtectedRoute>
               <DocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows"
+          element={
+            <ProtectedRoute>
+              <WorkflowBuilderPage />
             </ProtectedRoute>
           }
         />

@@ -158,7 +158,7 @@ export function DossierFormModal({
                 className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
               />
               <p className="mt-1 text-xs text-slate-400">
-                Se vuoto, verrà generato automaticamente (ANNO/UO/PROGRESSIVO).
+                Se vuoto, verrà generato automaticamente (ANNO/U.O./PROGRESSIVO).
               </p>
             </div>
           )}

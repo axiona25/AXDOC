@@ -65,7 +65,7 @@ export function ProtocolTable({
               <th className="px-3 py-2 text-left font-medium text-slate-700">Oggetto</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Tipologia</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Mittente/Dest.</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-700">UO</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-700">U.O.</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Data e ora</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Categoria</th>
               <th className="px-3 py-2 text-left font-medium text-slate-700">Stato</th>

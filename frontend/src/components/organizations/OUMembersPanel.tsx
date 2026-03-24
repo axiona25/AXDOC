@@ -165,7 +165,7 @@ export function OUMembersPanel({ ou, onExport, onRefresh }: OUMembersPanelProps)
                 </li>
               ))}
               {members.length === 0 && (
-                <p className="text-sm text-slate-500">Nessun membro in questa UO.</p>
+                <p className="text-sm text-slate-500">Nessun membro in questa U.O.</p>
               )}
             </ul>
             {adding ? (
@@ -310,7 +310,7 @@ export function OUMembersPanel({ ou, onExport, onRefresh }: OUMembersPanelProps)
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-500">Nessun gruppo in questa UO. Crea il primo gruppo.</p>
+          <p className="text-sm text-slate-500">Nessun gruppo in questa U.O. Crea il primo gruppo.</p>
         )}
       </div>
     </div>

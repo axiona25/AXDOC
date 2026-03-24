@@ -220,7 +220,7 @@ export function EditUserModal({
       }
       onSuccess()
     } catch {
-      alert('Errore aggiornamento UO.')
+      alert('Errore aggiornamento U.O.')
     } finally {
       setOuLoading(false)
     }
@@ -540,11 +540,11 @@ export function EditUserModal({
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
                 Seleziona le Unità Organizzative a cui l&apos;utente appartiene. L&apos;utente vedrà documenti,
-                fascicoli e protocolli di tutte le UO selezionate.
+                fascicoli e protocolli di tutte le U.O. selezionate.
               </p>
               <input
                 type="text"
-                placeholder="🔍 Cerca UO..."
+                placeholder="🔍 Cerca U.O...."
                 value={ouSearching}
                 onChange={(e) => setOuSearching(e.target.value)}
                 className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm"
@@ -585,7 +585,7 @@ export function EditUserModal({
                   })}
               </div>
               <p className="text-xs text-slate-400">
-                {userOUIds.size} UO assegnate — le modifiche sono immediate
+                {userOUIds.size} U.O. assegnate — le modifiche sono immediate
               </p>
             </div>
           )}
@@ -593,7 +593,7 @@ export function EditUserModal({
           {tab === 'groups' && (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
-                Seleziona i gruppi a cui l&apos;utente appartiene. I gruppi sono organizzati per UO.
+                Seleziona i gruppi a cui l&apos;utente appartiene. I gruppi sono organizzati per U.O.
               </p>
               <input
                 type="text"
@@ -632,7 +632,7 @@ export function EditUserModal({
                           <div className="flex-1">
                             <p className="text-sm font-medium text-slate-800">📂 {g.name}</p>
                             <p className="text-xs text-slate-500">
-                              {g.organizational_unit_name ? `UO: ${g.organizational_unit_name}` : 'Senza UO'}
+                              {g.organizational_unit_name ? `U.O.: ${g.organizational_unit_name}` : 'Senza U.O.'}
                               {' · '}
                               {g.members_count} membri
                             </p>
@@ -654,7 +654,7 @@ export function EditUserModal({
           {tab === 'permissions' && (
             <div className="space-y-4">
               <p className="text-sm text-slate-600">
-                <span className="font-medium text-green-600">Verde</span> = accesso via UO.
+                <span className="font-medium text-green-600">Verde</span> = accesso via U.O.
                 <span className="ml-1 font-medium text-blue-600">Blu</span> = accesso esplicito. Espandi le
                 cartelle per vedere i file. Usa la ricerca per trovare elementi specifici.
               </p>
@@ -837,7 +837,7 @@ export function EditUserModal({
                                 <div className="ml-2 flex shrink-0 items-center gap-1">
                                   {isInUserOU && (
                                     <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
-                                      UO
+                                      U.O.
                                     </span>
                                   )}
                                   {hasExplicit && (
@@ -889,7 +889,7 @@ export function EditUserModal({
                     <div className="flex flex-wrap gap-3 rounded bg-slate-50 px-3 py-2 text-xs">
                       <span className="flex items-center gap-1">
                         <span className="inline-block h-3 w-3 rounded border border-green-300 bg-green-100" />
-                        Via UO
+                        Via U.O.
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="inline-block h-3 w-3 rounded border border-blue-300 bg-blue-100" />
@@ -907,7 +907,7 @@ export function EditUserModal({
 
         <div className="flex items-center justify-between border-t border-slate-200 px-6 py-3">
           <p className="text-xs text-slate-400">
-            Le modifiche a UO, Gruppi e Permessi accesso sono salvate automaticamente
+            Le modifiche a U.O., Gruppi e Permessi accesso sono salvate automaticamente
           </p>
           <button
             type="button"

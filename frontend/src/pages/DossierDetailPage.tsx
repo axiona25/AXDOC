@@ -299,7 +299,7 @@ export function DossierDetailPage() {
               <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${statusBadge}`}>{statusLabel}</span>
               <span className="text-sm text-slate-600">Responsabile: {dossier.responsible_email || '—'}</span>
               {dossier.organizational_unit_code && (
-                <span className="text-sm text-slate-500">UO: {dossier.organizational_unit_code}</span>
+                <span className="text-sm text-slate-500">U.O.: {dossier.organizational_unit_code}</span>
               )}
             </div>
             {isOpen && canEditDossier && (

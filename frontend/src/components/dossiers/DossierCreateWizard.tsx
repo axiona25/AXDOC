@@ -178,7 +178,7 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
                   <option key={o.id} value={o.id}>{o.code} — {o.name}</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-500">Il codice identificativo sarà generato automaticamente (ANNO/UO/PROGRESSIVO).</p>
+              <p className="mt-1 text-xs text-slate-500">Il codice identificativo sarà generato automaticamente (ANNO/U.O./PROGRESSIVO).</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Classificazione (titolario)</label>
@@ -247,10 +247,10 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
                   const u = users.find((x) => x.id === responsibleId)
                   if (!u) return '—'
                   const ous = u.organizational_units
-                  return `${u.first_name || ''} ${u.last_name || ''} (${u.email})${ous && ous.length > 0 ? ` — UO: ${ous.map((o) => o.name).join(', ')}` : ''}`
+                  return `${u.first_name || ''} ${u.last_name || ''} (${u.email})${ous && ous.length > 0 ? ` — U.O.: ${ous.map((o) => o.name).join(', ')}` : ''}`
                 })()}
               </p>
-              <p><strong>UO:</strong> {ou?.name ?? '—'}</p>
+              <p><strong>U.O.:</strong> {ou?.name ?? '—'}</p>
               <p><strong>Codice identificativo (anteprima):</strong> <span className="font-mono">{previewIdentifier}</span></p>
               {classificationCode && <p><strong>Classificazione:</strong> {classificationCode} {classificationLabel}</p>}
               {classificationCode && <p><strong>Conservazione:</strong> {retentionYears} anni</p>}
