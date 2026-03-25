@@ -11,6 +11,7 @@ import { getDossiers } from '../../services/dossierService'
 import type { DossierItem } from '../../services/dossierService'
 import { getUsers } from '../../services/userService'
 import type { User } from '../../types/auth'
+import { searchContacts, type Contact as ContactItem } from '../../services/contactService'
 
 interface ProtocolFormModalProps {
   isOpen: boolean
@@ -78,6 +79,9 @@ export function ProtocolFormModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [createdProtocol, setCreatedProtocol] = useState<{ protocol_id: string; registered_at: string } | null>(null)
+  const [contactSearch, setContactSearch] = useState('')
+  const [contactResults, setContactResults] = useState<ContactItem[]>([])
+  const [searchingContacts, setSearchingContacts] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -99,6 +103,9 @@ export function ProtocolFormModal({
       setError(null)
       setCreatedProtocol(null)
       setLoading(false)
+      setContactSearch('')
+      setContactResults([])
+      setSearchingContacts(false)
       getOrganizationalUnits({}).then((r) => setOus(r.results || [])).catch(() => setOus([]))
       getDossiers({ status: 'open' }).then((r) => setDossiers(r.results || [])).catch(() => setDossiers([]))
       getDocuments({ page: 1 }).then((r) => setAvailableDocs(r.results || [])).catch(() => setAvailableDocs([]))
@@ -194,6 +201,67 @@ export function ProtocolFormModal({
   const toggleAttachment = (id: string) => {
     setAttachmentIds((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]))
   }
+
+  const handleContactSearch = async (q: string) => {
+    setContactSearch(q)
+    setSenderReceiver(q)
+    if (q.length < 2) {
+      setContactResults([])
+      return
+    }
+    setSearchingContacts(true)
+    try {
+      const results = await searchContacts(q)
+      setContactResults(results)
+    } catch {
+      setContactResults([])
+    } finally {
+      setSearchingContacts(false)
+    }
+  }
+
+  const contactAutocompleteInput = (placeholder: string) => (
+    <div className="relative">
+      <input
+        type="text"
+        value={contactSearch !== '' ? contactSearch : senderReceiver}
+        onChange={(e) => handleContactSearch(e.target.value)}
+        maxLength={500}
+        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {contactResults.length > 0 && contactSearch.length >= 2 && (
+        <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
+          {contactResults.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setSenderReceiver(c.display_name + (c.email ? ` <${c.email}>` : ''))
+                setContactSearch('')
+                setContactResults([])
+              }}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+            >
+              <div>
+                <span className="font-medium text-slate-800">{c.display_name}</span>
+                {c.email && <span className="ml-2 text-slate-500">{c.email}</span>}
+              </div>
+              {c.contact_type === 'company' && (
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">Azienda</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {searchingContacts && contactSearch.length >= 2 && contactResults.length === 0 && (
+        <div className="absolute z-10 mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-lg">
+          Ricerca...
+        </div>
+      )}
+    </div>
+  )
 
   const ouName = ous.find((o) => o.id === organizationalUnitId)?.name || '—'
 
@@ -306,7 +374,11 @@ export function ProtocolFormModal({
                   value={organizationalUnitId}
                   onChange={(e) => {
                     setOrganizationalUnitId(e.target.value)
-                    if (direction === 'out') setSenderReceiver('')
+                    if (direction === 'out') {
+                      setSenderReceiver('')
+                      setContactSearch('')
+                      setContactResults([])
+                    }
                   }}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 >
@@ -331,6 +403,8 @@ export function ProtocolFormModal({
                         onClick={() => {
                           setSenderReceiver('')
                           setRecipientMode('internal')
+                          setContactSearch('')
+                          setContactResults([])
                         }}
                         className={`rounded px-3 py-1 text-xs font-medium ${recipientMode === 'internal' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
                       >
@@ -341,6 +415,8 @@ export function ProtocolFormModal({
                         onClick={() => {
                           setSenderReceiver('')
                           setRecipientMode('external')
+                          setContactSearch('')
+                          setContactResults([])
                         }}
                         className={`rounded px-3 py-1 text-xs font-medium ${recipientMode === 'external' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
                       >
@@ -367,25 +443,11 @@ export function ProtocolFormModal({
                           })}
                       </select>
                     ) : (
-                      <input
-                        type="text"
-                        value={senderReceiver}
-                        onChange={(e) => setSenderReceiver(e.target.value)}
-                        maxLength={500}
-                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Nome o email del destinatario esterno"
-                      />
+                      contactAutocompleteInput('Cerca contatto o digita nome/email...')
                     )}
                   </>
                 ) : (
-                  <input
-                    type="text"
-                    value={senderReceiver}
-                    onChange={(e) => setSenderReceiver(e.target.value)}
-                    maxLength={500}
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Nome o email del mittente"
-                  />
+                  contactAutocompleteInput('Cerca contatto in rubrica o digita mittente...')
                 )}
               </div>
 

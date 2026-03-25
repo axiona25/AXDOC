@@ -8,8 +8,10 @@ from datetime import timedelta
 from django.http import FileResponse, HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import SignatureRequest, SignatureSequenceStep, ConservationRequest
 from .serializers import (
@@ -418,3 +420,101 @@ class ConservationRequestViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": "Solo ADMIN."}, status=status.HTTP_403_FORBIDDEN)
         result = ConservationService.check_all_pending()
         return Response(result)
+
+
+class VerifyP7MView(APIView):
+    """
+    POST /api/verify_p7m/
+    Upload di un file .p7m e verifica della firma digitale.
+    Ritorna info sul firmatario, validità certificato, errori.
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        import os
+        import tempfile
+
+        file_obj = request.FILES.get("file")
+        if not file_obj:
+            return Response({"detail": "Campo 'file' obbligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file_obj.name.lower().endswith(".p7m"):
+            return Response({"detail": "Solo file .p7m accettati."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with tempfile.NamedTemporaryFile(suffix=".p7m", delete=False) as tmp:
+            for chunk in file_obj.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        try:
+            from .verification import verify_p7m
+
+            result = verify_p7m(tmp_path)
+            result["file_name"] = file_obj.name
+            result["file_size"] = file_obj.size
+            return Response(result)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+
+class ExtractP7MView(APIView):
+    """
+    POST /api/extract_p7m/
+    Upload di un file .p7m, estrae il documento originale e lo ritorna come download.
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        import os
+        import tempfile
+
+        file_obj = request.FILES.get("file")
+        if not file_obj:
+            return Response({"detail": "Campo 'file' obbligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file_obj.name.lower().endswith(".p7m"):
+            return Response({"detail": "Solo file .p7m accettati."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with tempfile.NamedTemporaryFile(suffix=".p7m", delete=False) as tmp:
+            for chunk in file_obj.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        result = {}
+        try:
+            from .verification import extract_p7m_content
+
+            result = extract_p7m_content(tmp_path)
+
+            if not result["success"]:
+                return Response(
+                    {"detail": result.get("error", "Estrazione fallita.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            extracted_path = result["extracted_path"]
+            original_name = result["original_name"] or "documento_estratto"
+            content_type = result["content_type"] or "application/octet-stream"
+
+            with open(extracted_path, "rb") as f:
+                content = f.read()
+
+            response = HttpResponse(content, content_type=content_type)
+            response["Content-Disposition"] = f'attachment; filename="{original_name}"'
+            return response
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            if result.get("extracted_path") and os.path.exists(result["extracted_path"]):
+                os.unlink(result["extracted_path"])
+                extracted_dir = os.path.dirname(result["extracted_path"])
+                if extracted_dir and os.path.isdir(extracted_dir):
+                    try:
+                        os.rmdir(extracted_dir)
+                    except OSError:
+                        pass

@@ -3,7 +3,7 @@ API Workflow: template, step, istanze (RF-048..RF-057).
 """
 from datetime import timedelta
 
-from django.db.models import Max, Q
+from django.db.models import Max, Prefetch, Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -25,6 +25,8 @@ from .notifications import (
     notify_step_rejected,
     notify_workflow_cancelled,
     notify_workflow_completed,
+    notify_consulted,
+    notify_informed,
 )
 from apps.users.permissions import IsAdminRole
 
@@ -38,6 +40,15 @@ class WorkflowTemplateViewSet(viewsets.ModelViewSet):
         qs = WorkflowTemplate.objects.filter(is_deleted=False)
         if self.request.query_params.get("mine") == "true" and self.request.user:
             qs = qs.filter(created_by=self.request.user)
+        if getattr(self, "action", None) == "retrieve":
+            qs = qs.prefetch_related(
+                Prefetch(
+                    "steps",
+                    queryset=WorkflowStep.objects.order_by("order")
+                    .select_related("accountable_user")
+                    .prefetch_related("consulted_users", "informed_users"),
+                )
+            )
         return qs.order_by("name")
 
     def get_serializer_class(self):
@@ -109,7 +120,12 @@ class WorkflowStepViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         template_id = self.kwargs.get("template_pk")
-        return WorkflowStep.objects.filter(template_id=template_id).order_by("order")
+        return (
+            WorkflowStep.objects.filter(template_id=template_id)
+            .order_by("order")
+            .select_related("accountable_user")
+            .prefetch_related("consulted_users", "informed_users")
+        )
 
     def perform_create(self, serializer):
         template_id = self.kwargs["template_pk"]
@@ -147,12 +163,19 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
         qs = WorkflowInstance.objects.all().select_related(
             "template", "document", "started_by"
         ).prefetch_related(
-            "step_instances", "step_instances__step", "step_instances__assigned_to"
+            "step_instances",
+            "step_instances__step",
+            "step_instances__assigned_to",
+            "step_instances__step__consulted_users",
+            "step_instances__step__informed_users",
         )
         if getattr(user, "role", None) != "ADMIN":
             qs = qs.filter(
-                Q(started_by=user) |
-                Q(step_instances__assigned_to=user)
+                Q(started_by=user)
+                | Q(step_instances__assigned_to=user)
+                | Q(step_instances__step__accountable_user=user)
+                | Q(step_instances__step__consulted_users=user)
+                | Q(step_instances__step__informed_users=user)
             ).distinct()
         document_id = self.request.query_params.get("document_id")
         if document_id:
@@ -250,6 +273,24 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
                 defaults={"can_read": True, "can_write": False, "can_delete": False},
             )
 
+        # Accesso lettura per utenti RACI (Accountable, Consulted, Informed)
+        raci_user_ids = set()
+        for si_step in instance.step_instances.select_related("step", "step__accountable_user").prefetch_related(
+            "step__consulted_users",
+            "step__informed_users",
+        ):
+            step_def = si_step.step
+            if step_def.accountable_user_id:
+                raci_user_ids.add(step_def.accountable_user_id)
+            raci_user_ids.update(step_def.consulted_users.values_list("pk", flat=True))
+            raci_user_ids.update(step_def.informed_users.values_list("pk", flat=True))
+        for uid in raci_user_ids:
+            DocumentPermission.objects.get_or_create(
+                document=document,
+                user_id=uid,
+                defaults={"can_read": True, "can_write": False, "can_delete": False},
+            )
+
         # Attiva il primo step
         first_si = instance.step_instances.filter(step__order=instance.current_step_order).first()
         if first_si:
@@ -257,6 +298,7 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             first_si.started_at = timezone.now()
             first_si.save(update_fields=["status", "started_at"])
             notify_step_assigned(first_si)
+            notify_consulted(first_si)
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -320,6 +362,7 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             instance.completed_at = timezone.now()
             instance.save(update_fields=["status", "completed_at"])
             notify_step_rejected(current_si, request.user)
+            notify_informed(current_si, action_taken, request.user)
         else:
             # Trova il prossimo step
             next_steps = instance.step_instances.filter(
@@ -353,13 +396,16 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
                         defaults={"can_read": True, "can_write": False, "can_delete": False},
                     )
                 notify_step_completed(current_si, request.user)
+                notify_informed(current_si, action_taken, request.user)
                 notify_step_assigned(next_si)
+                notify_consulted(next_si)
             else:
                 # Tutti gli step completati → workflow completato
                 instance.status = "completed"
                 instance.completed_at = timezone.now()
                 instance.save(update_fields=["status", "completed_at"])
                 notify_step_completed(current_si, request.user)
+                notify_informed(current_si, action_taken, request.user)
                 notify_workflow_completed(instance)
 
         # Ricarica e ritorna

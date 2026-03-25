@@ -3,7 +3,7 @@ API documenti: CRUD, versioning, lock, allegati, cifratura (FASE 04 + FASE 05).
 """
 import hashlib
 import os
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db.models import Max, Q
@@ -30,6 +30,7 @@ from .serializers import (
 )
 from .permissions import CanAccessDocument, _documents_queryset_filter
 from .encryption import DocumentEncryption
+from .viewer import detect_mime_type
 from apps.authentication.models import AuditLog
 from apps.users.permissions import IsAdminRole
 from django.contrib.auth import get_user_model
@@ -186,7 +187,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             version_number=1,
             file_name=file_obj.name or "file",
             file_size=file_obj.size,
-            file_type=file_obj.content_type or "application/octet-stream",
+            file_type=detect_mime_type(file_obj.name, file_obj.content_type or ""),
             checksum=checksum,
             created_by=request.user,
             change_description=(request.data.get("change_description") or "").strip(),
@@ -196,6 +197,24 @@ class DocumentViewSet(viewsets.ModelViewSet):
         from apps.documents.tasks import process_uploaded_file
 
         process_uploaded_file.delay(str(version.pk))
+        # Se il file è un .p7m, verifica automaticamente la firma
+        if (file_obj.name or "").lower().endswith(".p7m"):
+            try:
+                from apps.signatures.verification import verify_p7m
+
+                ver_path = version.file.path
+                p7m_result = verify_p7m(ver_path)
+                if p7m_result.get("signers"):
+                    # Salva info firma nei metadati del documento
+                    doc.metadata_values = doc.metadata_values or {}
+                    doc.metadata_values["p7m_signature"] = {
+                        "valid": p7m_result["valid"],
+                        "signers": p7m_result["signers"],
+                        "verified_at": timezone.now().isoformat(),
+                    }
+                    doc.save(update_fields=["metadata_values"])
+            except Exception as e:
+                print(f"[P7M] Verifica automatica fallita: {e}")
         allowed_users = request.data.get("allowed_users")
         if isinstance(allowed_users, str):
             import json
@@ -380,8 +399,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
         - Generic: 415 con { viewer_type: 'generic' }
         Header X-Viewer-Type con il tipo rilevato.
         """
-        from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
-        from .viewer import get_viewer_type, convert_office_to_pdf, parse_eml
+        from django.http import HttpResponseNotAllowed, JsonResponse
+        from .viewer import (
+            get_viewer_type,
+            convert_office_to_pdf,
+            parse_eml,
+            convert_image_to_web,
+            convert_video_to_mp4,
+            NEEDS_IMAGE_CONVERSION,
+            NEEDS_VIDEO_CONVERSION,
+        )
 
         document = self.get_object()
         version = document.versions.filter(version_number=document.current_version).first()
@@ -477,6 +504,87 @@ class DocumentViewSet(viewsets.ModelViewSet):
             response["X-Viewer-Type"] = "office"
             return response
 
+        # Immagini non-web: converti in JPEG/PNG
+        if viewer_type == "image" and mime in NEEDS_IMAGE_CONVERSION:
+            import tempfile as tf
+
+            file_name = version.file_name or "image"
+            suffix = os.path.splitext(file_name)[1] or ".bin"
+            with tf.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                for chunk in version.file.chunks():
+                    tmp.write(chunk)
+                tmp.flush()
+                src_path = tmp.name
+            try:
+                converted_path, converted_mime = convert_image_to_web(src_path)
+                with open(converted_path, "rb") as f:
+                    content = f.read()
+                out_dir = os.path.dirname(converted_path)
+                try:
+                    os.unlink(converted_path)
+                except OSError:
+                    pass
+                try:
+                    os.rmdir(out_dir)
+                except OSError:
+                    pass
+            except Exception as e:
+                return Response(
+                    {"detail": f"Conversione immagine fallita: {e}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            finally:
+                try:
+                    os.unlink(src_path)
+                except OSError:
+                    pass
+            base_name = os.path.splitext(file_name)[0]
+            out_fname = base_name + (".png" if converted_mime == "image/png" else ".jpg")
+            response = HttpResponse(content, content_type=converted_mime)
+            response["Content-Disposition"] = f'inline; filename="{out_fname}"'
+            response["X-Viewer-Type"] = "image"
+            return response
+
+        # Video non-web: converti in MP4
+        if viewer_type == "video" and mime in NEEDS_VIDEO_CONVERSION:
+            import tempfile as tf
+
+            file_name = version.file_name or "video"
+            suffix = os.path.splitext(file_name)[1] or ".bin"
+            with tf.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                for chunk in version.file.chunks():
+                    tmp.write(chunk)
+                tmp.flush()
+                src_path = tmp.name
+            try:
+                mp4_path = convert_video_to_mp4(src_path)
+                with open(mp4_path, "rb") as f:
+                    content = f.read()
+                out_dir = os.path.dirname(mp4_path)
+                try:
+                    os.unlink(mp4_path)
+                except OSError:
+                    pass
+                try:
+                    os.rmdir(out_dir)
+                except OSError:
+                    pass
+            except Exception as e:
+                return Response(
+                    {"detail": f"Conversione video fallita: {e}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            finally:
+                try:
+                    os.unlink(src_path)
+                except OSError:
+                    pass
+            out_fname = os.path.splitext(file_name)[0] + ".mp4"
+            response = HttpResponse(content, content_type="video/mp4")
+            response["Content-Disposition"] = f'inline; filename="{out_fname}"'
+            response["X-Viewer-Type"] = "video"
+            return response
+
         if viewer_type in ("image", "video", "audio"):
             try:
                 f = version.file.open("rb")
@@ -542,7 +650,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             version_number=next_num,
             file_name=file_obj.name or "file",
             file_size=file_obj.size,
-            file_type=file_obj.content_type or "application/octet-stream",
+            file_type=detect_mime_type(file_obj.name, file_obj.content_type or ""),
             checksum=checksum,
             created_by=request.user,
             change_description=(request.data.get("change_description") or "").strip(),
@@ -1129,7 +1237,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document=document,
             file_name=file_obj.name or "allegato",
             file_size=file_obj.size,
-            file_type=file_obj.content_type or "application/octet-stream",
+            file_type=detect_mime_type(file_obj.name, file_obj.content_type or ""),
             uploaded_by=request.user,
             description=(request.data.get("description") or "").strip()[:500],
         )

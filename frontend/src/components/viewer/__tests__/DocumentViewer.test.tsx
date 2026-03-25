@@ -7,10 +7,12 @@ vi.mock('../../../services/documentService', () => ({
   getPreviewBlobUrl: vi.fn(),
   getPreviewJson: vi.fn(),
   downloadDocument: vi.fn(),
+  getDownloadBlobUrl: vi.fn(),
 }))
 
 vi.mock('../PdfViewer', () => ({ PdfViewer: () => <div data-testid="pdf-viewer">PDF</div> }))
 vi.mock('../OfficeViewer', () => ({ OfficeViewer: () => <div>Office</div> }))
+vi.mock('../P7MViewer', () => ({ P7MViewer: () => <div data-testid="p7m-viewer">P7M</div> }))
 
 import { DocumentViewer } from '../DocumentViewer'
 
@@ -50,6 +52,23 @@ describe('DocumentViewer', () => {
       expect(screen.queryByText(/Caricamento/)).not.toBeInTheDocument()
     })
     expect(screen.getByText(/Anteprima non disponibile/)).toBeInTheDocument()
+  })
+
+  it('renders P7M viewer for generic .p7m via download blob', async () => {
+    const { getViewerInfo, getDownloadBlobUrl } = await import('../../../services/documentService')
+    vi.mocked(getViewerInfo).mockResolvedValue({
+      viewer_type: 'generic',
+      mime_type: 'application/pkcs7-mime',
+      file_name: 'doc.p7m',
+      file_size: 2048,
+    })
+    vi.mocked(getDownloadBlobUrl).mockResolvedValue('blob:http://localhost/p7m')
+
+    render(<DocumentViewer documentId="doc-p7m" showHeader />)
+    await waitFor(() => {
+      expect(screen.getByTestId('p7m-viewer')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/doc\.p7m/)).toBeInTheDocument()
   })
 })
 

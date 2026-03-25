@@ -97,3 +97,48 @@ export function checkConservationStatus(consId: string): Promise<ConservationReq
 export function getDocumentConservation(docId: string): Promise<ConservationRequestItem[]> {
   return api.get<ConservationRequestItem[]>(`/api/documents/${docId}/conservation/`).then((r) => r.data)
 }
+
+// ─── P7M Verification ─────────────────────────────
+
+export interface P7MSignerInfo {
+  common_name: string
+  email: string
+  organization: string
+  serial_number: string
+  issuer: string
+  valid_from: string
+  valid_to: string
+  is_expired: boolean
+}
+
+export interface P7MVerifyResult {
+  valid: boolean
+  signers: P7MSignerInfo[]
+  content_extracted: boolean
+  content_file_name: string | null
+  errors: string[]
+  file_name?: string
+  file_size?: number
+}
+
+/** Endpoint reali: `/api/verify_p7m/` e `/api/extract_p7m/` (signatures.urls sotto `/api/`). */
+export function verifyP7M(file: File): Promise<P7MVerifyResult> {
+  const form = new FormData()
+  form.append('file', file)
+  return api
+    .post<P7MVerifyResult>('/api/verify_p7m/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((r) => r.data)
+}
+
+export function extractP7MContent(file: File): Promise<Blob> {
+  const form = new FormData()
+  form.append('file', file)
+  return api
+    .post('/api/extract_p7m/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      responseType: 'blob',
+    })
+    .then((r) => r.data)
+}

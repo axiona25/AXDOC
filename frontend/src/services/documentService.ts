@@ -150,6 +150,15 @@ export async function getPreviewBlobUrl(documentId: string): Promise<{ url: stri
   return { url, viewerType }
 }
 
+/** Download come blob URL (es. .p7m dove /preview/ non è disponibile). Da revocare con URL.revokeObjectURL. */
+export async function getDownloadBlobUrl(documentId: string, version?: number): Promise<string> {
+  const res = await api.get<Blob>(`/api/documents/${documentId}/download/`, {
+    responseType: 'blob',
+    params: version != null ? { version } : undefined,
+  })
+  return URL.createObjectURL(res.data)
+}
+
 /** FASE 19: preview come JSON (email, text). */
 export function getPreviewJson<T = Record<string, unknown>>(documentId: string): Promise<T> {
   return api.get<T>(`/api/documents/${documentId}/preview/`).then((r) => r.data)

@@ -16,6 +16,7 @@ import { LicensePage } from './pages/LicensePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { DocumentsPage } from './pages/DocumentsPage'
+import { P7MVerifyPage } from './pages/P7MVerifyPage'
 import { WorkflowBuilderPage } from './pages/WorkflowBuilderPage'
 import { MetadataPage } from './pages/MetadataPage'
 import { ProtocolsPage } from './pages/ProtocolsPage'
@@ -81,6 +82,14 @@ function App() {
           element={
             <ProtectedRoute>
               <DocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tools/p7m-verify"
+          element={
+            <ProtectedRoute>
+              <P7MVerifyPage />
             </ProtectedRoute>
           }
         />

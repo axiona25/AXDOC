@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { getViewerInfo, getPreviewBlobUrl, getPreviewJson, downloadDocument } from '../../services/documentService'
+import {
+  getViewerInfo,
+  getPreviewBlobUrl,
+  getPreviewJson,
+  downloadDocument,
+  getDownloadBlobUrl,
+} from '../../services/documentService'
 import type { ViewerInfo } from '../../services/documentService'
 import { PdfViewer } from './PdfViewer'
 import { OfficeViewer } from './OfficeViewer'
@@ -9,6 +15,7 @@ import { AudioPlayer } from './AudioPlayer'
 import { EmailViewer } from './EmailViewer'
 import { TextViewer } from './TextViewer'
 import { GenericViewer } from './GenericViewer'
+import { P7MViewer } from './P7MViewer'
 
 interface DocumentViewerProps {
   documentId: string
@@ -18,7 +25,7 @@ interface DocumentViewerProps {
   showHeader?: boolean
 }
 
-export function DocumentViewer({ documentId, onClose, showHeader = true }: DocumentViewerProps) {
+export function DocumentViewer({ documentId, onClose, showHeader = true, versionNumber }: DocumentViewerProps) {
   const [info, setInfo] = useState<ViewerInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +52,7 @@ export function DocumentViewer({ documentId, onClose, showHeader = true }: Docum
         if (cancelled) return
         setInfo(i)
         const vt = i.viewer_type
+        const isP7m = (i.file_name || '').toLowerCase().endsWith('.p7m')
         if (vt === 'email') {
           return getPreviewJson<Record<string, unknown>>(documentId).then((d: Record<string, unknown>) => {
             if (!cancelled) setEmailData(d)
@@ -55,7 +63,17 @@ export function DocumentViewer({ documentId, onClose, showHeader = true }: Docum
             if (!cancelled) setTextData(d)
           })
         }
-        if (vt === 'generic') return Promise.resolve()
+        if (vt === 'generic' && !isP7m) return Promise.resolve()
+        if (vt === 'generic' && isP7m) {
+          return getDownloadBlobUrl(documentId, versionNumber).then((url: string) => {
+            if (!cancelled) {
+              blobUrlRef.current = url
+              setBlobUrl(url)
+            } else if (typeof URL.revokeObjectURL === 'function') {
+              URL.revokeObjectURL(url)
+            }
+          })
+        }
         return getPreviewBlobUrl(documentId).then(({ url }: { url: string }) => {
           if (!cancelled) {
             blobUrlRef.current = url
@@ -74,7 +92,7 @@ export function DocumentViewer({ documentId, onClose, showHeader = true }: Docum
         blobUrlRef.current = null
       }
     }
-  }, [documentId])
+  }, [documentId, versionNumber])
 
   const handleDownload = () => {
     downloadDocument(documentId)
@@ -144,7 +162,10 @@ export function DocumentViewer({ documentId, onClose, showHeader = true }: Docum
         {viewerType === 'text' && textData && (
           <TextViewer content={textData.content || ''} language={textData.language} fileName={fileName} onDownload={handleDownload} />
         )}
-        {viewerType === 'generic' && (
+        {fileName?.toLowerCase().endsWith('.p7m') && blobUrl && (
+          <P7MViewer url={blobUrl} fileName={fileName} onDownload={handleDownload} />
+        )}
+        {viewerType === 'generic' && !fileName?.toLowerCase().endsWith('.p7m') && (
           <GenericViewer fileName={fileName} fileSize={fileSize} mimeType={mimeType} onDownload={handleDownload} />
         )}
       </div>

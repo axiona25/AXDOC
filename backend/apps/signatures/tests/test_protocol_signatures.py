@@ -237,7 +237,7 @@ class TestDownloadSigned:
 
 @pytest.mark.django_db
 class TestVerify:
-    def test_verify_returns_valid_result_for_mock(self, client, user_a, protocol):
+    def test_verify_returns_structured_result_for_invalid_p7m(self, client, user_a, protocol):
         sig = SignatureRequest.objects.create(
             target_type="protocol",
             protocol=protocol,
@@ -246,13 +246,16 @@ class TestVerify:
             status="completed",
         )
         from django.core.files.base import ContentFile
+
         sig.signed_file.save("signed.p7m", ContentFile(b"x"), save=True)
         client.force_authenticate(user=user_a)
         r = client.get(f"/api/signatures/{sig.id}/verify/")
         assert r.status_code == 200
         data = r.json()
         assert "valid" in data
-        assert data["valid"] is True
+        assert data["valid"] is False
+        assert "signers" in data
+        assert data["signers"] == []
 
 
 @pytest.mark.django_db

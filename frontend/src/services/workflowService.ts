@@ -16,6 +16,12 @@ export interface WorkflowStep {
   deadline_days: number | null
   instructions: string
   assignee_display: string
+  accountable_user: string | null
+  accountable_user_display: string | null
+  consulted_users: string[]
+  consulted_users_display: string[]
+  informed_users: string[]
+  informed_users_display: string[]
 }
 
 export interface WorkflowTemplate {
@@ -44,6 +50,9 @@ export interface WorkflowStepInstance {
   action_taken: string | null
   comment: string
   deadline: string | null
+  consulted_at: string | null
+  consulted_responses: unknown[]
+  informed_at: string | null
 }
 
 export interface WorkflowInstance {

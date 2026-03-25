@@ -169,3 +169,92 @@ def notify_workflow_cancelled(workflow_instance, cancelled_by_user):
                 "document_id": str(workflow.document_id),
             },
         )
+
+
+def notify_consulted(step_instance):
+    """
+    Notifica gli utenti Consulted che il loro parere è richiesto.
+    Tipo: workflow_assigned (riuso, con metadata.raci_role = 'consulted')
+    """
+    workflow = step_instance.workflow_instance
+    doc_title = workflow.document.title
+    step_name = step_instance.step.name
+    ct = ContentType.objects.get_for_model(workflow)
+
+    for user in step_instance.step.consulted_users.all():
+        Notification.objects.create(
+            recipient=user,
+            notification_type="workflow_assigned",
+            title=f"Parere richiesto: {step_name}",
+            body=(
+                f'Il tuo parere è richiesto per lo step "{step_name}" sul documento "{doc_title}". '
+                f"Rispondi con il tuo feedback."
+            ),
+            content_type=ct,
+            object_id=workflow.pk,
+            link_url=f"/documents?doc={workflow.document_id}",
+            metadata={
+                "workflow_instance_id": str(workflow.pk),
+                "step_instance_id": str(step_instance.pk),
+                "document_id": str(workflow.document_id),
+                "raci_role": "consulted",
+            },
+        )
+
+
+def notify_informed(step_instance, action_taken, completed_by_user):
+    """
+    Notifica gli utenti Informed che lo step è stato completato.
+    Tipo: workflow_approved (riuso, con metadata.raci_role = 'informed')
+    """
+    workflow = step_instance.workflow_instance
+    doc_title = workflow.document.title
+    step_name = step_instance.step.name
+    action_label = {
+        "approve": "approvato",
+        "complete": "completato",
+        "sign": "firmato",
+        "reject": "rifiutato",
+    }.get(action_taken, "completato")
+    ct = ContentType.objects.get_for_model(workflow)
+
+    for user in step_instance.step.informed_users.all():
+        if user == completed_by_user:
+            continue
+        Notification.objects.create(
+            recipient=user,
+            notification_type="workflow_approved",
+            title=f"Step {action_label}: {step_name}",
+            body=(
+                f'Lo step "{step_name}" sul documento "{doc_title}" è stato {action_label} da '
+                f"{completed_by_user.get_full_name() or completed_by_user.email}."
+            ),
+            content_type=ct,
+            object_id=workflow.pk,
+            link_url=f"/documents?doc={workflow.document_id}",
+            metadata={
+                "workflow_instance_id": str(workflow.pk),
+                "document_id": str(workflow.document_id),
+                "raci_role": "informed",
+            },
+        )
+
+    accountable = step_instance.step.accountable_user
+    if accountable and accountable != completed_by_user:
+        Notification.objects.create(
+            recipient=accountable,
+            notification_type="workflow_approved",
+            title=f"Step {action_label}: {step_name} (supervisione)",
+            body=(
+                f'Lo step "{step_name}" di cui sei responsabile è stato {action_label} da '
+                f"{completed_by_user.get_full_name() or completed_by_user.email}."
+            ),
+            content_type=ct,
+            object_id=workflow.pk,
+            link_url=f"/documents?doc={workflow.document_id}",
+            metadata={
+                "workflow_instance_id": str(workflow.pk),
+                "document_id": str(workflow.document_id),
+                "raci_role": "accountable",
+            },
+        )

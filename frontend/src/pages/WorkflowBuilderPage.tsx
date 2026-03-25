@@ -57,6 +57,9 @@ export function WorkflowBuilderPage() {
   const [stepRequired, setStepRequired] = useState(true)
   const [stepDeadlineDays, setStepDeadlineDays] = useState<number | ''>('')
   const [stepInstructions, setStepInstructions] = useState('')
+  const [stepAccountableUser, setStepAccountableUser] = useState('')
+  const [stepConsultedUsers, setStepConsultedUsers] = useState<string[]>([])
+  const [stepInformedUsers, setStepInformedUsers] = useState<string[]>([])
 
   // Risorse
   const [allUsers, setAllUsers] = useState<{ id: string; email: string; first_name?: string; last_name?: string }[]>([])
@@ -124,6 +127,9 @@ export function WorkflowBuilderPage() {
       setStepRequired(step.is_required)
       setStepDeadlineDays(step.deadline_days ?? '')
       setStepInstructions(step.instructions || '')
+      setStepAccountableUser(step.accountable_user || '')
+      setStepConsultedUsers(step.consulted_users ?? [])
+      setStepInformedUsers(step.informed_users ?? [])
     } else {
       setEditingStep(null)
       setStepName('')
@@ -136,6 +142,9 @@ export function WorkflowBuilderPage() {
       setStepRequired(true)
       setStepDeadlineDays('')
       setStepInstructions('')
+      setStepAccountableUser('')
+      setStepConsultedUsers([])
+      setStepInformedUsers([])
     }
     setStepModalOpen(true)
   }
@@ -154,6 +163,9 @@ export function WorkflowBuilderPage() {
       is_required: stepRequired,
       deadline_days: stepDeadlineDays || null,
       instructions: stepInstructions.trim(),
+      accountable_user: stepAccountableUser || null,
+      consulted_users: stepConsultedUsers,
+      informed_users: stepInformedUsers,
     }
     try {
       if (editingStep) {
@@ -316,6 +328,21 @@ export function WorkflowBuilderPage() {
                                           Facoltativo
                                         </span>
                                       )}
+                                      {step.accountable_user_display && (
+                                        <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">
+                                          A: {step.accountable_user_display}
+                                        </span>
+                                      )}
+                                      {step.consulted_users_display && step.consulted_users_display.length > 0 && (
+                                        <span className="rounded bg-cyan-50 px-2 py-0.5 text-xs text-cyan-600">
+                                          C: {step.consulted_users_display.length}
+                                        </span>
+                                      )}
+                                      {step.informed_users_display && step.informed_users_display.length > 0 && (
+                                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                          I: {step.informed_users_display.length}
+                                        </span>
+                                      )}
                                     </div>
                                     {step.instructions && (
                                       <p className="mt-1 text-xs text-slate-500">{step.instructions}</p>
@@ -454,6 +481,61 @@ export function WorkflowBuilderPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-700">Istruzioni</label>
                 <textarea value={stepInstructions} onChange={(e) => setStepInstructions(e.target.value)} rows={2} className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Istruzioni per chi esegue lo step..." />
+              </div>
+              <div className="border-t border-slate-200 pt-3 mt-1">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Matrice RACI</p>
+                <p className="text-xs text-slate-400 mb-3">
+                  R = chi esegue (già definito sopra) · A = supervisore · C = da consultare · I = da informare
+                </p>
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Supervisore (A)</label>
+                  <select
+                    value={stepAccountableUser}
+                    onChange={(e) => setStepAccountableUser(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Nessuno</option>
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name} {u.last_name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Da consultare (C)</label>
+                  <select
+                    multiple
+                    value={stepConsultedUsers}
+                    onChange={(e) => setStepConsultedUsers(Array.from(e.target.selectedOptions, (o) => o.value))}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    size={3}
+                  >
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name} {u.last_name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-0.5">Tieni premuto Cmd/Ctrl per selezione multipla</p>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Da informare (I)</label>
+                  <select
+                    multiple
+                    value={stepInformedUsers}
+                    onChange={(e) => setStepInformedUsers(Array.from(e.target.selectedOptions, (o) => o.value))}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    size={3}
+                  >
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name} {u.last_name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-0.5">Tieni premuto Cmd/Ctrl per selezione multipla</p>
+                </div>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={stepRequired} onChange={(e) => setStepRequired(e.target.checked)} className="rounded" />

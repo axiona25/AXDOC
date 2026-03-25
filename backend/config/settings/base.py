@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "apps.admin_panel",
     "apps.archive",
     "apps.mail",
+    "apps.contacts.apps.ContactsConfig",
     "social_django",
     "dbbackup",
     "django_celery_beat",

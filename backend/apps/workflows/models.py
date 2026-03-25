@@ -106,6 +106,32 @@ class WorkflowStep(models.Model):
     deadline_days = models.IntegerField(null=True, blank=True)
     instructions = models.TextField(blank=True)
 
+    # ─── RACI ───────────────────────────────────────
+    # R (Responsible) = assignee_type + assignee_role/user/ou (GIÀ ESISTENTE)
+    # A (Accountable) = chi approva/supervisiona lo step
+    accountable_user = models.ForeignKey(
+        _user_model(),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="accountable_workflow_steps",
+        help_text="Responsabile finale (Accountable) dello step",
+    )
+    # C (Consulted) = utenti da consultare prima dell'azione
+    consulted_users = models.ManyToManyField(
+        _user_model(),
+        blank=True,
+        related_name="consulted_workflow_steps",
+        help_text="Utenti da consultare prima dell'azione",
+    )
+    # I (Informed) = utenti da informare dopo il completamento
+    informed_users = models.ManyToManyField(
+        _user_model(),
+        blank=True,
+        related_name="informed_workflow_steps",
+        help_text="Utenti da informare dopo il completamento",
+    )
+
     class Meta:
         ordering = ["order"]
         verbose_name = "Step workflow"
@@ -202,6 +228,11 @@ class WorkflowStepInstance(models.Model):
     action_taken = models.CharField(max_length=30, null=True, blank=True)
     comment = models.TextField(blank=True)
     deadline = models.DateTimeField(null=True, blank=True)
+
+    # RACI tracking
+    consulted_at = models.DateTimeField(null=True, blank=True)
+    consulted_responses = models.JSONField(default=list, blank=True)
+    informed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = [["workflow_instance", "step"]]
