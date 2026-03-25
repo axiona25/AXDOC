@@ -5,7 +5,7 @@ import re
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import UserGroup, UserGroupMembership, ROLE_CHOICES
+from .models import UserGroup, UserGroupMembership, ROLE_CHOICES, ConsentRecord
 
 User = get_user_model()
 
@@ -36,6 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
             "user_type",
             "is_guest",
             "role",
+            "is_superuser",
             "is_active",
             "is_deleted",
             "date_joined",
@@ -45,6 +46,8 @@ class UserSerializer(serializers.ModelSerializer):
             "mfa_enabled",
             "organizational_unit",
             "organizational_units",
+            "privacy_accepted_at",
+            "data_retention_days",
         ]
         read_only_fields = ["id", "email", "date_joined", "is_deleted"]
 
@@ -283,3 +286,10 @@ class UserGroupDetailSerializer(UserGroupSerializer):
 
     class Meta(UserGroupSerializer.Meta):
         fields = list(UserGroupSerializer.Meta.fields) + ["members", "created_by"]
+
+
+class ConsentRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConsentRecord
+        fields = ["id", "consent_type", "version", "granted", "created_at"]
+        read_only_fields = ["id", "created_at"]

@@ -14,6 +14,13 @@ def _user_model():
 class Folder(models.Model):
     """Cartella con gerarchia parent/subfolders (RF-028). Metadati AGID (FASE 18)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="folders",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=255)
     parent = models.ForeignKey(
         "self",
@@ -89,6 +96,13 @@ class Document(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="documents",
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=500)
     description = models.TextField(blank=True)
     folder = models.ForeignKey(
@@ -157,6 +171,29 @@ class Document(models.Model):
         related_name="owned_documents",
         help_text="Proprietario (impostato a created_by alla creazione).",
     )
+    ocr_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "In attesa"),
+            ("processing", "In elaborazione"),
+            ("completed", "Completato"),
+            ("failed", "Fallito"),
+            ("not_needed", "Non necessario"),
+        ],
+        default="pending",
+        blank=True,
+    )
+    ocr_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidenza OCR media 0-100",
+    )
+    ocr_error = models.TextField(blank=True, default="")
+    extracted_text = models.TextField(
+        blank=True,
+        default="",
+        help_text="Testo estratto (OCR, pdftotext o estrazione nativa)",
+    )
 
     class Meta:
         verbose_name = "Documento"
@@ -219,6 +256,90 @@ class DocumentVersion(models.Model):
 
     def __str__(self):
         return f"{self.document.title} v{self.version_number}"
+
+
+class DocumentTemplate(models.Model):
+    """Template documento precompilato (FASE 26)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="document_templates",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=255, help_text="Nome del template")
+    description = models.TextField(blank=True, default="")
+
+    default_status = models.CharField(
+        max_length=20,
+        default=Document.STATUS_DRAFT,
+        choices=[
+            (Document.STATUS_DRAFT, "Bozza"),
+            (Document.STATUS_IN_REVIEW, "In Revisione"),
+        ],
+    )
+    default_folder = models.ForeignKey(
+        "Folder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="document_templates",
+        help_text="Cartella di destinazione predefinita",
+    )
+    default_metadata_structure = models.ForeignKey(
+        "metadata.MetadataStructure",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="document_templates",
+        help_text="Struttura metadati predefinita",
+    )
+    default_workflow_template = models.ForeignKey(
+        "workflows.WorkflowTemplate",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="document_templates",
+        help_text="Workflow da avviare automaticamente",
+    )
+    default_metadata_values = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Valori predefiniti per i campi metadati",
+    )
+    auto_start_workflow = models.BooleanField(
+        default=False,
+        help_text="Avvia automaticamente il workflow dopo il caricamento",
+    )
+    is_active = models.BooleanField(default=True)
+    allowed_file_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Estensioni ammesse (es. ['pdf']). Vuoto = tutte.",
+    )
+    max_file_size_mb = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Dimensione massima file in MB. Null = nessun limite.",
+    )
+    created_by = models.ForeignKey(
+        _user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_document_templates",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Template documento"
+        verbose_name_plural = "Template documenti"
+
+    def __str__(self):
+        return self.name
 
 
 class DocumentAttachment(models.Model):

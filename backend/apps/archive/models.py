@@ -136,6 +136,13 @@ class RetentionRule(models.Model):
 class InformationPackage(models.Model):
     """Pacchetto informativo PdV, PdA o PdD (FASE 21)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="information_packages",
+        null=True,
+        blank=True,
+    )
     package_type = models.CharField(
         max_length=10,
         choices=PACKAGE_TYPE_CHOICES,

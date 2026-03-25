@@ -6,11 +6,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.users.permissions import IsAdminRole
 from apps.users.guest_permissions import IsInternalUser
-from .models import OrganizationalUnit, OrganizationalUnitMembership
+from .mixins import TenantFilterMixin
+from .models import Tenant, OrganizationalUnit, OrganizationalUnitMembership
 from .serializers import (
+    TenantSerializer,
     OrganizationalUnitSerializer,
     OrganizationalUnitDetailSerializer,
     OrganizationalUnitCreateSerializer,
@@ -20,14 +23,50 @@ from .serializers import (
 from .utils import export_members_csv
 
 
-class OrganizationalUnitViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Organizzazioni"], summary="Lista tenant"),
+    retrieve=extend_schema(tags=["Organizzazioni"], summary="Dettaglio tenant"),
+)
+class TenantViewSet(viewsets.ReadOnlyModelViewSet):
+    """Lista tenant (superuser: tutti; altri: solo il proprio). GET .../current/ — tenant attivo."""
+
+    serializer_class = TenantSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = "id"
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return Tenant.objects.filter(is_active=True).order_by("name")
+        t = getattr(self.request, "tenant", None)
+        if t:
+            return Tenant.objects.filter(id=t.id)
+        return Tenant.objects.none()
+
+    @extend_schema(tags=["Organizzazioni"], summary="Tenant corrente (contesto richiesta)")
+    @action(detail=False, methods=["get"], url_path="current")
+    def current(self, request):
+        tenant = getattr(request, "tenant", None)
+        if not tenant:
+            return Response({"detail": "Nessun tenant."}, status=404)
+        return Response(TenantSerializer(tenant).data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=["Organizzazioni"], summary="Lista unità organizzative"),
+    create=extend_schema(tags=["Organizzazioni"], summary="Crea unità organizzativa"),
+    retrieve=extend_schema(tags=["Organizzazioni"], summary="Dettaglio UO"),
+    update=extend_schema(tags=["Organizzazioni"], summary="Aggiorna UO"),
+    partial_update=extend_schema(tags=["Organizzazioni"], summary="Aggiorna parziale UO"),
+    destroy=extend_schema(tags=["Organizzazioni"], summary="Disattiva UO"),
+)
+class OrganizationalUnitViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """CRUD UO. list/retrieve: autenticati; create/update/destroy: solo ADMIN. Solo utenti interni (FASE 17)."""
 
     permission_classes = [IsAuthenticated, IsInternalUser]
     queryset = OrganizationalUnit.objects.all()
 
     def get_queryset(self):
-        qs = OrganizationalUnit.objects.all()
+        qs = super().get_queryset()
         if self.request.query_params.get("mine") == "true":
             from apps.organizations.models import OrganizationalUnitMembership
             ou_ids = OrganizationalUnitMembership.objects.filter(
@@ -66,8 +105,8 @@ class OrganizationalUnitViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminRole()]
         return [IsAuthenticated(), IsInternalUser()]
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    def get_perform_create_kwargs(self, serializer):
+        return {"created_by": self.request.user}
 
     def perform_destroy(self, instance):
         """Soft delete: is_active=False. Solo se senza documenti (FASE 05)."""
@@ -77,7 +116,7 @@ class OrganizationalUnitViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def tree(self, request):
         """GET /api/organizations/tree/ — struttura ad albero (solo root)."""
-        roots = OrganizationalUnit.objects.filter(parent__isnull=True, is_active=True)
+        roots = self.get_queryset().filter(parent__isnull=True, is_active=True)
         data = OrganizationalUnitSerializer(roots, many=True).data
         return Response(data)
 

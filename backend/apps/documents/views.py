@@ -2,6 +2,7 @@
 API documenti: CRUD, versioning, lock, allegati, cifratura (FASE 04 + FASE 05).
 """
 import hashlib
+import json
 import os
 from django.http import FileResponse, HttpResponse
 from django.core.files import File
@@ -20,6 +21,7 @@ from .models import (
     DocumentPermission,
     DocumentOUPermission,
     Folder,
+    DocumentTemplate,
 )
 from .serializers import (
     DocumentListSerializer,
@@ -27,18 +29,59 @@ from .serializers import (
     DocumentCreateSerializer,
     DocumentVersionSerializer,
     DocumentAttachmentSerializer,
+    DocumentTemplateSerializer,
 )
 from .permissions import CanAccessDocument, _documents_queryset_filter
 from .encryption import DocumentEncryption
 from .viewer import detect_mime_type
 from apps.authentication.models import AuditLog
+from apps.organizations.mixins import TenantFilterMixin
 from apps.users.permissions import IsAdminRole
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.dashboard.export_service import ExportService
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
 
-class DocumentViewSet(viewsets.ModelViewSet):
+def _documents_export_queryset(view, request):
+    qs = view.get_queryset()
+    folder_id = request.query_params.get("folder_id")
+    if folder_id and folder_id != "null" and folder_id != "":
+        qs = qs.filter(folder_id=folder_id)
+    else:
+        if folder_id == "null" or request.query_params.get("folder_id") == "":
+            qs = qs.filter(folder_id__isnull=True)
+    status_filter = request.query_params.get("status")
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    created_by = request.query_params.get("created_by")
+    if created_by:
+        qs = qs.filter(created_by_id=created_by)
+    title = request.query_params.get("title")
+    if title:
+        qs = qs.filter(title__icontains=title)
+    meta_id = request.query_params.get("metadata_structure_id")
+    if meta_id:
+        qs = qs.filter(metadata_structure_id=meta_id)
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+    return qs.order_by("-updated_at")
+
+
+@extend_schema_view(
+    list=extend_schema(tags=["Documenti"], summary="Lista documenti"),
+    create=extend_schema(tags=["Documenti"], summary="Carica documento"),
+    retrieve=extend_schema(tags=["Documenti"], summary="Dettaglio documento"),
+    update=extend_schema(tags=["Documenti"], summary="Aggiorna documento"),
+    partial_update=extend_schema(tags=["Documenti"], summary="Aggiorna parziale documento"),
+    destroy=extend_schema(tags=["Documenti"], summary="Elimina documento"),
+)
+class DocumentViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     Documenti: list, retrieve, create, update, destroy, upload_version, download,
     versions, lock, unlock, copy, move, attachments. Encrypt/decrypt (FASE 04).
@@ -63,7 +106,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 Q(owner=self.request.user)
                 | Q(visibility=Document.VISIBILITY_OFFICE, owner_id__in=owner_ids_in_my_ou)
             ).distinct()
-            return qs.select_related("folder", "created_by")
+            return self.filter_queryset_by_tenant(qs).select_related("folder", "created_by")
         if section == "office":
             from apps.organizations.models import OrganizationalUnitMembership
             user_ou_ids = list(
@@ -81,14 +124,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 visibility=Document.VISIBILITY_OFFICE,
                 owner_id__in=owner_ids_in_my_ou,
             ).distinct()
-            return qs.select_related("folder", "created_by")
+            return self.filter_queryset_by_tenant(qs).select_related("folder", "created_by")
         qs = Document.objects.filter(is_deleted=False).filter(
             _documents_queryset_filter(self.request.user)
         ).distinct()
         visibility = self.request.query_params.get("visibility")
         if visibility in ("personal", "office", "shared"):
             qs = qs.filter(visibility=visibility)
-        return qs.select_related("folder", "created_by")
+        return self.filter_queryset_by_tenant(qs).select_related("folder", "created_by")
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -119,6 +162,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
         meta_id = request.query_params.get("metadata_structure_id")
         if meta_id:
             qs = qs.filter(metadata_structure_id=meta_id)
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
         ordering = request.query_params.get("ordering", "-updated_at")
         if ordering.lstrip("-") in ("title", "created_at", "updated_at", "status"):
             qs = qs.order_by(ordering)
@@ -128,6 +177,101 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = DocumentListSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="export_excel")
+    def export_excel(self, request):
+        qs = _documents_export_queryset(self, request).select_related("created_by", "folder")[:5000]
+        headers = [
+            "Titolo",
+            "Stato",
+            "Cartella",
+            "Creato da",
+            "Data Creazione",
+            "Ultimo Aggiornamento",
+            "Metadati",
+        ]
+        rows = []
+        for d in qs:
+            meta_preview = ""
+            if d.metadata_values:
+                try:
+                    meta_preview = json.dumps(d.metadata_values, ensure_ascii=False)[:80]
+                except (TypeError, ValueError):
+                    meta_preview = str(d.metadata_values)[:80]
+            rows.append(
+                [
+                    d.title,
+                    d.get_status_display(),
+                    d.folder.name if d.folder_id else "",
+                    d.created_by.email if d.created_by_id else "",
+                    d.created_at.strftime("%d/%m/%Y %H:%M") if d.created_at else "",
+                    d.updated_at.strftime("%d/%m/%Y %H:%M") if d.updated_at else "",
+                    meta_preview,
+                ]
+            )
+        return ExportService.generate_excel(
+            title="Report Documenti",
+            headers=headers,
+            rows=rows,
+            column_widths=[32, 14, 20, 28, 18, 18, 28],
+        )
+
+    @action(detail=False, methods=["post"], url_path="bulk_delete")
+    def bulk_delete(self, request):
+        ids = request.data.get("document_ids", [])
+        if not isinstance(ids, list) or len(ids) < 1 or len(ids) > 100:
+            return Response(
+                {"detail": "Fornisci da 1 a 100 document_ids."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = self.get_queryset().filter(id__in=ids)
+        if getattr(request.user, "role", None) != "ADMIN":
+            qs = qs.filter(created_by=request.user)
+        deleted = qs.update(is_deleted=True)
+        return Response({"deleted": deleted})
+
+    @action(detail=False, methods=["post"], url_path="bulk_move")
+    def bulk_move(self, request):
+        ids = request.data.get("document_ids", [])
+        if not isinstance(ids, list) or len(ids) < 1 or len(ids) > 100:
+            return Response(
+                {"detail": "Fornisci da 1 a 100 document_ids."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if "folder_id" not in request.data:
+            return Response(
+                {"detail": "folder_id obbligatorio (null per root)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        folder_id = request.data.get("folder_id")
+        if folder_id:
+            if not Folder.objects.filter(id=folder_id, is_deleted=False).exists():
+                return Response({"detail": "Cartella non trovata."}, status=status.HTTP_404_NOT_FOUND)
+        qs = self.get_queryset().filter(id__in=ids)
+        if getattr(request.user, "role", None) != "ADMIN":
+            qs = qs.filter(created_by=request.user)
+        moved = qs.update(folder_id=folder_id)
+        return Response({"moved": moved})
+
+    @action(detail=False, methods=["post"], url_path="bulk_status")
+    def bulk_status(self, request):
+        if getattr(request.user, "role", None) not in ("ADMIN", "APPROVER"):
+            return Response({"detail": "Non autorizzato."}, status=status.HTTP_403_FORBIDDEN)
+        ids = request.data.get("document_ids", [])
+        new_status = request.data.get("status")
+        if not isinstance(ids, list) or len(ids) < 1 or len(ids) > 100:
+            return Response(
+                {"detail": "Fornisci da 1 a 100 document_ids."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if new_status not in (Document.STATUS_ARCHIVED, Document.STATUS_DRAFT):
+            return Response(
+                {"detail": "Status non valido per bulk. Ammessi: ARCHIVED, DRAFT."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = self.get_queryset().filter(id__in=ids)
+        updated = qs.update(status=new_status)
+        return Response({"updated": updated})
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -170,7 +314,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         visibility = (request.data.get("visibility") or "personal").strip().lower()
         if visibility not in ("personal", "office", "shared"):
             visibility = "personal"
-        doc = Document.objects.create(
+        doc_kwargs = dict(
             title=title,
             description=description,
             folder=folder,
@@ -180,6 +324,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
             owner=request.user,
             visibility=visibility,
         )
+        t = getattr(request, "tenant", None)
+        if t and not getattr(request.user, "is_superuser", False):
+            doc_kwargs["tenant"] = t
+        doc = Document.objects.create(**doc_kwargs)
         checksum = hashlib.sha256(file_obj.read()).hexdigest()
         file_obj.seek(0)
         version = DocumentVersion.objects.create(
@@ -363,6 +511,84 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 "documents": serialize_docs(office_docs),
             },
         })
+
+    @action(detail=False, methods=["post"], url_path="classify_text")
+    def classify_text(self, request):
+        """POST /api/documents/classify_text/ — classifica testo grezzo (anteprima upload)."""
+        text = (request.data.get("text") or "").strip()
+        if len(text) < 10:
+            return Response({"detail": "Testo richiesto (minimo 10 caratteri)."}, status=status.HTTP_400_BAD_REQUEST)
+        from .classification_service import DocumentClassificationService
+
+        result = DocumentClassificationService.classify(text)
+        return Response(result)
+
+    @action(detail=True, methods=["post"], url_path="run_ocr")
+    def run_ocr(self, request, pk=None):
+        """POST /api/documents/{id}/run_ocr/ — forza riesecuzione estrazione testo/OCR."""
+        doc = self.get_object()
+        version = doc.versions.filter(is_current=True).first()
+        if not version or not version.file:
+            return Response({"detail": "Nessuna versione file disponibile."}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.documents.tasks import process_document_text_extraction
+
+        Document.objects.filter(pk=doc.id).update(ocr_status="processing", ocr_error="")
+        process_document_text_extraction.delay(str(version.id))
+        return Response({"detail": "Estrazione testo avviata.", "ocr_status": "processing"})
+
+    @action(detail=True, methods=["get"], url_path="classify")
+    def classify(self, request, pk=None):
+        """GET /api/documents/{id}/classify/ — suggerimenti tipo, metadati, workflow, titolario."""
+        doc = self.get_object()
+        text = (doc.extracted_text or "").strip()
+        if not text:
+            from apps.search.models import DocumentIndex
+
+            try:
+                idx = DocumentIndex.objects.get(document=doc)
+                text = (idx.content or "").strip()
+            except DocumentIndex.DoesNotExist:
+                pass
+        if len(text) < 10:
+            return Response(
+                {
+                    "detail": "Nessun testo disponibile. Attendi l'estrazione o esegui OCR.",
+                    "suggestions": [],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.archive.models import RetentionRule
+        from apps.workflows.models import WorkflowTemplate
+
+        from .classification_service import DocumentClassificationService
+
+        result = DocumentClassificationService.classify(
+            text,
+            tenant_id=str(doc.tenant_id) if doc.tenant_id else None,
+        )
+        ws = result.get("workflow_suggestion")
+        if ws:
+            wt = (
+                WorkflowTemplate.objects.filter(
+                    is_published=True,
+                    is_deleted=False,
+                    name__icontains=ws.replace("_", " "),
+                ).first()
+                or WorkflowTemplate.objects.filter(
+                    is_published=True, is_deleted=False, name__icontains=ws
+                ).first()
+            )
+            if wt:
+                result["workflow_template"] = {"id": str(wt.id), "name": wt.name}
+        cs = result.get("classification_suggestion")
+        if cs:
+            rule = RetentionRule.objects.filter(classification_code=cs, is_active=True).first()
+            if rule:
+                result["classification"] = {
+                    "code": rule.classification_code,
+                    "label": rule.classification_label,
+                }
+        return Response(result)
 
     @action(detail=True, methods=["get"], url_path="viewer_info")
     def viewer_info(self, request, pk=None):
@@ -669,11 +895,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
             {"document_id": str(document.id), "version": next_num},
             request,
         )
-        try:
-            from apps.search.tasks import index_document
-            index_document(new_version.id)
-        except Exception:
-            pass
         return Response(
             DocumentVersionSerializer(new_version).data,
             status=status.HTTP_201_CREATED,
@@ -1375,3 +1596,53 @@ class DocumentViewSet(viewsets.ModelViewSet):
             base_name = base_name[:-4]
         response = FileResponse(ContentFile(plaintext), as_attachment=True, filename=base_name)
         return response
+
+
+@extend_schema_view(
+    list=extend_schema(tags=["Documenti"], summary="Lista template documenti"),
+    create=extend_schema(tags=["Documenti"], summary="Crea template documento"),
+    retrieve=extend_schema(tags=["Documenti"], summary="Dettaglio template"),
+    update=extend_schema(tags=["Documenti"], summary="Aggiorna template"),
+    partial_update=extend_schema(tags=["Documenti"], summary="Aggiorna parziale template"),
+    destroy=extend_schema(tags=["Documenti"], summary="Elimina template"),
+)
+class DocumentTemplateViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+    """CRUD template documenti. Scrittura solo ADMIN; lettura template attivi per tutti."""
+
+    serializer_class = DocumentTemplateSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = DocumentTemplate.objects.all()
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related(
+            "default_folder",
+            "default_metadata_structure",
+            "default_workflow_template",
+            "created_by",
+        )
+        if getattr(self.request.user, "role", None) != "ADMIN":
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def get_perform_create_kwargs(self, serializer):
+        return {"created_by": self.request.user}
+
+    def create(self, request, *args, **kwargs):
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response({"detail": "Solo ADMIN può creare template."}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response({"detail": "Solo ADMIN può modificare template."}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response({"detail": "Solo ADMIN può modificare template."}, status=status.HTTP_403_FORBIDDEN)
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response({"detail": "Solo ADMIN può eliminare template."}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)

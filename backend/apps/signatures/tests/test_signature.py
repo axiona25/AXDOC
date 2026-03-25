@@ -290,4 +290,4 @@ class TestVerifySignature:
         assert r.status_code == 200
         data = r.json()
         assert data.get("valid") is True
-        assert "signer_name" in data
+        assert "signer_cn" in data

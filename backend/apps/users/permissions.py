@@ -4,14 +4,14 @@ Permessi custom per l'app users.
 from rest_framework import permissions
 
 
-class IsAdminRole(permissions.BasePermission):
-    """Consente accesso solo se l'utente ha role ADMIN."""
+class IsAdminRole(permissions.IsAuthenticated):
+    """Consente accesso solo se l'utente è autenticato e (ADMIN o superuser)."""
 
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", None) == "ADMIN"
+        if not super().has_permission(request, view):
+            return False
+        return getattr(request.user, "role", None) == "ADMIN" or getattr(
+            request.user, "is_superuser", False
         )
 
 

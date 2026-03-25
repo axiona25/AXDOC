@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import OrganizationalUnit, OrganizationalUnitMembership
+from .models import Tenant, OrganizationalUnit, OrganizationalUnitMembership
+
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "plan", "is_active", "created_at"]
+    list_filter = ["is_active", "plan"]
+    search_fields = ["name", "slug", "domain"]
 
 
 class OrganizationalUnitMembershipInline(admin.TabularInline):

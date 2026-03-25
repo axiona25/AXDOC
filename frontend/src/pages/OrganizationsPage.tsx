@@ -81,7 +81,7 @@ export function OrganizationsPage() {
           </div>
         </div>
       </header>
-      <main className="p-6">
+      <div className="p-6">
         <div className="mb-4 flex items-center gap-4">
           <label className="flex items-center gap-2">
             <input
@@ -125,7 +125,7 @@ export function OrganizationsPage() {
             />
           </div>
         </div>
-      </main>
+      </div>
       <OUFormModal
         isOpen={ouModalOpen}
         onClose={() => { setOuModalOpen(false); setOuModalInitial(null) }}

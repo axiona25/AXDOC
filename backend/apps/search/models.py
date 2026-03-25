@@ -19,6 +19,12 @@ class DocumentIndex(models.Model):
         related_name="+",
     )
     content = models.TextField(blank=True)
+    extraction_method = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        help_text="Es. ocr, pdftotext, pypdf, docx",
+    )
     indexed_at = models.DateTimeField(auto_now=True)
     error_message = models.CharField(max_length=500, blank=True)
 

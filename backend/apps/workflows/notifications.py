@@ -5,6 +5,15 @@ from apps.notifications.models import Notification
 from django.contrib.contenttypes.models import ContentType
 
 
+def _tenant_id_for_workflow(workflow):
+    doc = getattr(workflow, "document", None)
+    if doc and getattr(doc, "tenant_id", None):
+        return doc.tenant_id
+    if getattr(workflow, "tenant_id", None):
+        return workflow.tenant_id
+    return None
+
+
 def notify_step_assigned(step_instance):
     """
     Notifica tutti gli utenti assegnati a uno step che è il loro turno.
@@ -16,10 +25,12 @@ def notify_step_assigned(step_instance):
     template_name = workflow.template.name
 
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     for user in step_instance.assigned_to.all():
         Notification.objects.create(
             recipient=user,
+            tenant_id=tid,
             notification_type="workflow_assigned",
             title=f"Azione richiesta: {step_name}",
             body=f'Sei stato assegnato allo step "{step_name}" del workflow "{template_name}" sul documento "{doc_title}".',
@@ -53,9 +64,11 @@ def notify_step_completed(step_instance, completed_by_user):
     }.get(step_instance.action_taken, "completato")
 
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     Notification.objects.create(
         recipient=workflow.started_by,
+        tenant_id=tid,
         notification_type="workflow_approved",
         title=f"Step {action_label}: {step_name}",
         body=f'{completed_by_user.get_full_name() or completed_by_user.email} ha {action_label} lo step "{step_name}" sul documento "{doc_title}".',
@@ -83,6 +96,7 @@ def notify_step_rejected(step_instance, rejected_by_user):
     comment = step_instance.comment or ""
 
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     suffix = f" Motivo: {comment}" if comment else ""
     body = (
@@ -92,6 +106,7 @@ def notify_step_rejected(step_instance, rejected_by_user):
 
     Notification.objects.create(
         recipient=workflow.started_by,
+        tenant_id=tid,
         notification_type="workflow_rejected",
         title=f"Step rifiutato: {step_name}",
         body=body,
@@ -119,9 +134,11 @@ def notify_workflow_completed(workflow_instance):
     template_name = workflow.template.name
 
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     Notification.objects.create(
         recipient=workflow.started_by,
+        tenant_id=tid,
         notification_type="workflow_completed",
         title=f"Workflow completato: {template_name}",
         body=f'Il workflow "{template_name}" sul documento "{doc_title}" è stato completato con successo.',
@@ -143,6 +160,7 @@ def notify_workflow_cancelled(workflow_instance, cancelled_by_user):
     doc_title = workflow.document.title
 
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     # Notifica assegnatari dello step corrente
     current_si = workflow.step_instances.filter(status="in_progress").first()
@@ -158,6 +176,7 @@ def notify_workflow_cancelled(workflow_instance, cancelled_by_user):
             continue
         Notification.objects.create(
             recipient=user,
+            tenant_id=tid,
             notification_type="system",
             title="Workflow annullato",
             body=f'{cancelled_by_user.get_full_name() or cancelled_by_user.email} ha annullato il workflow sul documento "{doc_title}".',
@@ -180,10 +199,12 @@ def notify_consulted(step_instance):
     doc_title = workflow.document.title
     step_name = step_instance.step.name
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     for user in step_instance.step.consulted_users.all():
         Notification.objects.create(
             recipient=user,
+            tenant_id=tid,
             notification_type="workflow_assigned",
             title=f"Parere richiesto: {step_name}",
             body=(
@@ -217,12 +238,14 @@ def notify_informed(step_instance, action_taken, completed_by_user):
         "reject": "rifiutato",
     }.get(action_taken, "completato")
     ct = ContentType.objects.get_for_model(workflow)
+    tid = _tenant_id_for_workflow(workflow)
 
     for user in step_instance.step.informed_users.all():
         if user == completed_by_user:
             continue
         Notification.objects.create(
             recipient=user,
+            tenant_id=tid,
             notification_type="workflow_approved",
             title=f"Step {action_label}: {step_name}",
             body=(
@@ -243,6 +266,7 @@ def notify_informed(step_instance, action_taken, completed_by_user):
     if accountable and accountable != completed_by_user:
         Notification.objects.create(
             recipient=accountable,
+            tenant_id=tid,
             notification_type="workflow_approved",
             title=f"Step {action_label}: {step_name} (supervisione)",
             body=(

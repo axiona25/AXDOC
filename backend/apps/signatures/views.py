@@ -12,6 +12,8 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import SignatureRequest, SignatureSequenceStep, ConservationRequest
 from .serializers import (
@@ -35,6 +37,10 @@ def _notify(recipient, notification_type, title, body, link_url="", metadata=Non
         pass
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Firma Digitale"], summary="Lista richieste di firma"),
+    retrieve=extend_schema(tags=["Firma Digitale"], summary="Dettaglio richiesta firma"),
+)
 class SignatureRequestViewSet(viewsets.ReadOnlyModelViewSet):
     """Richieste firma: list, retrieve, verify_otp, resend_otp, verify; FASE 20: request_for_protocol/dossier, sign_step, reject_step, status_detail, download_signed."""
     serializer_class = SignatureRequestSerializer
@@ -422,6 +428,28 @@ class ConservationRequestViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(result)
 
 
+@extend_schema(
+    tags=["Firma Digitale"],
+    summary="Verifica firma P7M",
+    request={
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {"file": {"type": "string", "format": "binary"}},
+        }
+    },
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "valid": {"type": "boolean"},
+                "signers": {"type": "array", "items": {"type": "object"}},
+                "errors": {"type": "array", "items": {"type": "string"}},
+                "file_name": {"type": "string"},
+                "file_size": {"type": "integer"},
+            },
+        }
+    },
+)
 class VerifyP7MView(APIView):
     """
     POST /api/verify_p7m/
@@ -460,6 +488,17 @@ class VerifyP7MView(APIView):
                 os.unlink(tmp_path)
 
 
+@extend_schema(
+    tags=["Firma Digitale"],
+    summary="Estrai contenuto da file P7M",
+    request={
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {"file": {"type": "string", "format": "binary"}},
+        }
+    },
+    responses={200: OpenApiTypes.BINARY},
+)
 class ExtractP7MView(APIView):
     """
     POST /api/extract_p7m/

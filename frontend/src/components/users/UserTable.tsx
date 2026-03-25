@@ -54,12 +54,12 @@ export function UserTable({
           placeholder="Cerca nome o email..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
         />
         <select
           value={roleFilter}
           onChange={(e) => onRoleFilterChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
         >
           <option value="">Tutti i ruoli</option>
           {Object.entries(ROLE_LABELS).map(([v, l]) => (
@@ -69,7 +69,7 @@ export function UserTable({
         <select
           value={userTypeFilter}
           onChange={(e) => onUserTypeFilterChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
         >
           <option value="">Tutti i tipi</option>
           <option value="internal">Interni</option>
@@ -78,7 +78,7 @@ export function UserTable({
         <select
           value={activeFilter}
           onChange={(e) => onActiveFilterChange(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
         >
           <option value="">Tutti</option>
           <option value="true">Attivi</option>
@@ -86,30 +86,30 @@ export function UserTable({
         </select>
       </div>
       {isLoading ? (
-        <p className="text-slate-500">Caricamento...</p>
+        <p className="text-slate-500 dark:text-slate-400">Caricamento...</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+          <div className="overflow-x-auto rounded border border-slate-200 dark:border-slate-700">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Nome</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Email</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Tipo</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Ruolo</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">U.O.</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Stato</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Data creazione</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-600">Azioni</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Nome</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Email</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Tipo</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Ruolo</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">U.O.</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Stato</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300">Data creazione</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-600 dark:text-slate-300">Azioni</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-700 dark:bg-slate-900/40">
                 {users.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-4 py-2 text-sm text-slate-800">
+                  <tr key={user.id} className="dark:hover:bg-slate-800/80">
+                    <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100">
                       {user.first_name} {user.last_name}
                     </td>
-                    <td className="px-4 py-2 text-sm text-slate-600">{user.email}</td>
+                    <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">{user.email}</td>
                     <td className="px-4 py-2">
                       <span
                         className={`inline rounded px-2 py-0.5 text-xs font-medium ${
@@ -121,14 +121,16 @@ export function UserTable({
                         {user.is_guest || user.user_type === 'guest' ? 'Ospite' : 'Interno'}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm">{ROLE_LABELS[user.role] ?? user.role}</td>
+                    <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-200">
+                      {ROLE_LABELS[user.role] ?? user.role}
+                    </td>
                     <td className="px-4 py-2 text-sm">
                       {user.organizational_units && user.organizational_units.length > 0 ? (
-                        <span className="text-slate-800">
+                        <span className="text-slate-800 dark:text-slate-100">
                           {user.organizational_units.map((ou) => ou.name).join(', ')}
                         </span>
                       ) : (
-                        <span className="italic text-slate-400">In attesa di assegnazione</span>
+                        <span className="italic text-slate-400 dark:text-slate-500">In attesa di assegnazione</span>
                       )}
                     </td>
                     <td className="px-4 py-2">
@@ -140,7 +142,7 @@ export function UserTable({
                         {user.is_active ? 'Attivo' : 'Disattivo'}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-slate-500">
+                    <td className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">
                       {user.date_joined ? new Date(user.date_joined).toLocaleDateString('it-IT') : '-'}
                     </td>
                     <td className="px-4 py-2 text-right text-sm">

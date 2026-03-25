@@ -10,6 +10,13 @@ from django.utils import timezone
 
 class ProtocolCounter(models.Model):
     """Contatore progressivo per anno + UO (RF-059)."""
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="protocol_counters",
+        null=True,
+        blank=True,
+    )
     organizational_unit = models.ForeignKey(
         "organizations.OrganizationalUnit",
         on_delete=models.CASCADE,
@@ -31,7 +38,10 @@ class ProtocolCounter(models.Model):
             counter, _ = cls.objects.select_for_update().get_or_create(
                 organizational_unit=ou,
                 year=year,
-                defaults={"last_number": 0},
+                defaults={
+                    "last_number": 0,
+                    "tenant": getattr(ou, "tenant", None),
+                },
             )
             counter.last_number += 1
             counter.save(update_fields=["last_number"])
@@ -67,6 +77,13 @@ class Protocol(models.Model):
     DIRECTION_OUT_LEGACY = "OUT"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="protocols",
+        null=True,
+        blank=True,
+    )
     number = models.IntegerField(null=True, blank=True, help_text="Progressivo anno/UO")
     year = models.IntegerField(null=True, blank=True)
     organizational_unit = models.ForeignKey(

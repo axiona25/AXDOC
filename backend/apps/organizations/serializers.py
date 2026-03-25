@@ -4,7 +4,27 @@ Serializers per Unità Organizzative (RF-021..RF-027).
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import OrganizationalUnit, OrganizationalUnitMembership, OU_ROLE_CHOICES
+from .models import Tenant, OrganizationalUnit, OrganizationalUnitMembership, OU_ROLE_CHOICES
+
+
+class TenantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tenant
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "domain",
+            "logo_url",
+            "primary_color",
+            "max_users",
+            "max_storage_gb",
+            "plan",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 
 User = get_user_model()
 

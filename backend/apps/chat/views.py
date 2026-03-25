@@ -12,16 +12,24 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.views import APIView
 
 from .models import ChatRoom, ChatMessage, ChatMembership
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .serializers import ChatRoomSerializer, ChatMessageSerializer, ChatMembershipSerializer
 
 
-class ChatRoomViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Chat"], summary="Lista stanze chat"),
+    create=extend_schema(tags=["Chat"], summary="Crea stanza chat"),
+    retrieve=extend_schema(tags=["Chat"], summary="Dettaglio stanza"),
+)
+class ChatRoomViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     serializer_class = ChatRoomSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
+    queryset = ChatRoom.objects.all()
 
     def get_queryset(self):
-        return ChatRoom.objects.filter(
+        return super().get_queryset().filter(
             is_active=True,
             memberships__user=self.request.user,
         ).distinct().prefetch_related("memberships__user", "messages").order_by("-created_at")
@@ -62,7 +70,10 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         users = list(User.objects.filter(pk__in=member_ids))
         if request.user.id not in [u.id for u in users]:
             users.append(request.user)
-        room = ChatRoom.objects.create(room_type="group", name=name, created_by=request.user)
+        t = getattr(request, "tenant", None)
+        room = ChatRoom.objects.create(
+            room_type="group", name=name, created_by=request.user, tenant=t
+        )
         for u in users:
             ChatMembership.objects.get_or_create(room=room, user=u, defaults={"is_admin": u.id == request.user.id})
         return Response(ChatRoomSerializer(room, context={"request": request}).data, status=status.HTTP_201_CREATED)

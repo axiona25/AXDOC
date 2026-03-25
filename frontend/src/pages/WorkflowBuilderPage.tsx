@@ -186,50 +186,82 @@ export function WorkflowBuilderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white px-6 py-3">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
+      <header className="border-b border-slate-200 bg-white px-6 py-3 dark:border-slate-700 dark:bg-slate-800">
         <nav className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-          <Link to="/dashboard" className="text-indigo-600 hover:underline">Dashboard</Link>
-          <Link to="/search" className="text-indigo-600 hover:underline">Ricerca</Link>
-          <Link to="/documents" className="text-indigo-600 hover:underline">Documenti</Link>
-          <span className="font-semibold text-slate-800">Workflow</span>
-          <Link to="/mail" className="text-indigo-600 hover:underline">Posta</Link>
-          <Link to="/protocols" className="text-indigo-600 hover:underline">Protocolli</Link>
-          <Link to="/dossiers" className="text-indigo-600 hover:underline">Fascicoli</Link>
-          <Link to="/archive" className="text-indigo-600 hover:underline">Archivio</Link>
+          <Link to="/dashboard" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Dashboard
+          </Link>
+          <Link to="/search" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Ricerca
+          </Link>
+          <Link to="/documents" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Documenti
+          </Link>
+          <span className="font-semibold text-slate-800 dark:text-slate-100">Workflow</span>
+          <Link to="/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Posta
+          </Link>
+          <Link to="/protocols" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Protocolli
+          </Link>
+          <Link to="/dossiers" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Fascicoli
+          </Link>
+          <Link to="/archive" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Archivio
+          </Link>
           {user?.role === 'ADMIN' && (
             <>
-              <Link to="/metadata" className="text-indigo-600 hover:underline">Metadati</Link>
-              <Link to="/users" className="text-indigo-600 hover:underline">Utenti</Link>
-              <Link to="/organizations" className="text-indigo-600 hover:underline">Organizzazioni</Link>
-              <Link to="/settings" className="text-indigo-600 hover:underline">Impostazioni</Link>
-              <Link to="/audit" className="text-indigo-600 hover:underline">Audit</Link>
+              <Link to="/metadata" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                Metadati
+              </Link>
+              <Link to="/users" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                Utenti
+              </Link>
+              <Link to="/organizations" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                Organizzazioni
+              </Link>
+              <Link to="/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                Impostazioni
+              </Link>
+              <Link to="/audit" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                Audit
+              </Link>
             </>
           )}
-          <Link to="/profile" className="text-indigo-600 hover:underline">Profilo</Link>
+          <Link to="/profile" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Profilo
+          </Link>
         </nav>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-800">Workflow Builder</h1>
-            <p className="text-sm text-slate-500">Crea processi di approvazione, firma e revisione documentale</p>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Workflow Builder</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Crea processi di approvazione, firma e revisione documentale
+            </p>
           </div>
-          <button type="button" onClick={() => setCreateOpen(true)} className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 dark:hover:bg-indigo-500"
+          >
             + Nuovo workflow
           </button>
         </div>
       </header>
 
-      <main className="p-6">
+      <div className="p-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* LISTA TEMPLATE */}
           <div className="lg:col-span-1">
-            <div className="rounded-lg border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <h2 className="font-semibold text-slate-800">Template workflow</h2>
+            <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+              <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-600">
+                <h2 className="font-semibold text-slate-800 dark:text-slate-100">Template workflow</h2>
               </div>
-              <div className="divide-y divide-slate-100 max-h-[70vh] overflow-y-auto">
+              <div className="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700">
                 {loading ? (
-                  <p className="p-4 text-sm text-slate-500">Caricamento...</p>
+                  <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Caricamento...</p>
                 ) : templates.length === 0 ? (
                   <p className="p-4 text-sm text-slate-500">Nessun workflow. Creane uno nuovo.</p>
                 ) : templates.map((t) => (
@@ -255,7 +287,7 @@ export function WorkflowBuilderPage() {
           {/* DETTAGLIO + STEP BUILDER */}
           <div className="lg:col-span-2">
             {selectedTemplate ? (
-              <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
                 {/* Header template */}
                 <div className="border-b border-slate-200 px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -374,14 +406,14 @@ export function WorkflowBuilderPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500">
+              <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-8 text-center text-slate-500">
                 <p className="text-lg">Seleziona un template o creane uno nuovo</p>
                 <p className="text-sm mt-1">Il workflow builder ti permette di definire processi di approvazione, firma e revisione.</p>
               </div>
             )}
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Modal crea template */}
       {createOpen && (

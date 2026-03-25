@@ -2,6 +2,7 @@
 API Fascicoli: CRUD, archiviazione, documenti e protocolli (RF-064..RF-069, FASE 22).
 """
 import hashlib
+from django.db.models import Count
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
@@ -10,6 +11,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.users.guest_permissions import IsInternalUser
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import (
     Dossier,
     DossierDocument,
@@ -34,6 +37,21 @@ from apps.documents.models import Document, Folder
 from apps.protocols.models import Protocol
 from apps.organizations.models import OrganizationalUnitMembership
 from apps.users.permissions import get_user_ou_ids
+from apps.dashboard.export_service import ExportService
+
+
+def _dossier_export_queryset(view, request):
+    qs = view.get_queryset().annotate(_doc_count=Count("dossier_documents", distinct=True))
+    responsible_id = request.query_params.get("responsible_id")
+    ou_id = request.query_params.get("ou_id")
+    status_param = request.query_params.get("status")
+    if responsible_id:
+        qs = qs.filter(responsible_id=responsible_id)
+    if ou_id:
+        qs = qs.filter(organizational_unit_id=ou_id)
+    if status_param in ("open", "closed", "archived"):
+        qs = qs.filter(status=status_param)
+    return qs.order_by("-updated_at")
 
 
 def _user_can_access_dossier(user, dossier):
@@ -67,16 +85,25 @@ def _user_can_write_dossier(user, dossier):
     return DossierPermission.objects.filter(dossier=dossier, user=user, can_write=True).exists()
 
 
-class DossierViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Fascicoli"], summary="Lista fascicoli"),
+    create=extend_schema(tags=["Fascicoli"], summary="Crea fascicolo"),
+    retrieve=extend_schema(tags=["Fascicoli"], summary="Dettaglio fascicolo"),
+    update=extend_schema(tags=["Fascicoli"], summary="Aggiorna fascicolo"),
+    partial_update=extend_schema(tags=["Fascicoli"], summary="Aggiorna parziale fascicolo"),
+    destroy=extend_schema(tags=["Fascicoli"], summary="Elimina fascicolo"),
+)
+class DossierViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     Fascicoli: list (filter=mine/all, status=archived), retrieve, create, update, destroy.
     Azioni: archive, add_document, remove_document, add_protocol, remove_protocol, documents, protocols.
     Solo utenti interni (FASE 17).
     """
     permission_classes = [IsAuthenticated, IsInternalUser]
+    queryset = Dossier.objects.filter(is_deleted=False)
 
     def get_queryset(self):
-        qs = Dossier.objects.filter(is_deleted=False).select_related("responsible", "created_by")
+        qs = super().get_queryset().select_related("responsible", "created_by")
         if not self.request.user.is_authenticated:
             return qs.none()
         filter_param = self.request.query_params.get("filter", "").lower()
@@ -115,13 +142,77 @@ class DossierViewSet(viewsets.ModelViewSet):
         return DossierListSerializer
 
     def list(self, request, *args, **kwargs):
-        qs = self.get_queryset().order_by("-updated_at")
+        qs = self.get_queryset()
+        responsible_id = request.query_params.get("responsible_id")
+        if responsible_id:
+            qs = qs.filter(responsible_id=responsible_id)
+        ou_id = request.query_params.get("ou_id")
+        if ou_id:
+            qs = qs.filter(organizational_unit_id=ou_id)
+        qs = qs.order_by("-updated_at")
         page = self.paginate_queryset(qs)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="export_excel")
+    def export_excel(self, request):
+        qs = _dossier_export_queryset(self, request).select_related("responsible", "organizational_unit")[:5000]
+        headers = ["Codice", "Titolo", "Responsabile", "UO", "Stato", "Data Creazione", "Documenti"]
+        rows = []
+        for d in qs:
+            resp_name = ""
+            if d.responsible_id:
+                u = d.responsible
+                resp_name = u.get_full_name() or u.email or ""
+            rows.append(
+                [
+                    d.identifier or str(d.id)[:8],
+                    d.title,
+                    resp_name,
+                    d.organizational_unit.name if d.organizational_unit_id else "",
+                    d.get_status_display(),
+                    d.created_at.strftime("%d/%m/%Y") if d.created_at else "",
+                    d._doc_count,
+                ]
+            )
+        return ExportService.generate_excel(
+            title="Report Fascicoli",
+            headers=headers,
+            rows=rows,
+            column_widths=[16, 36, 22, 18, 12, 14, 10],
+        )
+
+    @action(detail=False, methods=["get"], url_path="export_pdf")
+    def export_pdf(self, request):
+        qs = _dossier_export_queryset(self, request).select_related("responsible", "organizational_unit")[:5000]
+        headers = ["Codice", "Titolo", "Resp.", "UO", "Stato", "Creazione", "Doc."]
+        rows = []
+        for d in qs:
+            resp_name = ""
+            if d.responsible_id:
+                u = d.responsible
+                resp_name = (u.get_full_name() or u.email or "")[:24]
+            rows.append(
+                [
+                    (d.identifier or str(d.id)[:8])[:14],
+                    (d.title or "")[:50],
+                    resp_name,
+                    (d.organizational_unit.name if d.organizational_unit_id else "")[:16],
+                    d.get_status_display(),
+                    d.created_at.strftime("%d/%m/%Y") if d.created_at else "",
+                    d._doc_count,
+                ]
+            )
+        return ExportService.generate_pdf(
+            title="Report Fascicoli",
+            headers=headers,
+            rows=rows,
+            orientation="landscape",
+            column_widths=[22, 52, 28, 24, 16, 20, 12],
+        )
 
     def retrieve(self, request, *args, **kwargs):
         pk = kwargs.get("pk")

@@ -23,7 +23,7 @@ export function FolderTree({
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       {loading && (
-        <div className="py-2 text-sm text-slate-500">Caricamento...</div>
+        <div className="py-2 text-sm text-slate-500 dark:text-slate-400">Caricamento...</div>
       )}
       <ul className="list-none pl-0">
         <li>
@@ -78,7 +78,7 @@ function FolderTreeNode({
   return (
     <li className="py-0.5">
       <div
-        className="group flex items-center gap-1 rounded px-2 py-1.5 hover:bg-slate-100"
+        className="group flex items-center gap-1 rounded px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/80"
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -88,7 +88,7 @@ function FolderTreeNode({
         <button
           type="button"
           onClick={() => setExpanded((x) => !x)}
-          className="shrink-0 p-0.5 text-slate-500"
+          className="shrink-0 p-0.5 text-slate-500 dark:text-slate-400"
           aria-label={expanded ? 'Chiudi' : 'Espandi'}
         >
           {hasChildren ? (expanded ? '▼' : '▶') : ' '}
@@ -96,7 +96,9 @@ function FolderTreeNode({
         <button
           type="button"
           onClick={() => onSelect(folder)}
-          className={`min-w-0 flex-1 truncate text-left text-sm ${isSelected ? 'font-semibold text-indigo-700' : 'text-slate-700'}`}
+          className={`min-w-0 flex-1 truncate text-left text-sm ${
+            isSelected ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'
+          }`}
         >
           📁 {folder.name}
         </button>
@@ -118,7 +120,7 @@ function FolderTreeNode({
             {onRename && (
               <button
                 type="button"
-                className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100"
+                className="block w-full px-3 py-1.5 text-left text-sm text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
                 onClick={() => { onRename(folder); setContextMenu(false) }}
               >
                 Rinomina
@@ -127,7 +129,7 @@ function FolderTreeNode({
             {onNewSubfolder && (
               <button
                 type="button"
-                className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100"
+                className="block w-full px-3 py-1.5 text-left text-sm text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"
                 onClick={() => { onNewSubfolder(folder); setContextMenu(false) }}
               >
                 Nuova sottocartella
@@ -136,7 +138,7 @@ function FolderTreeNode({
             {onDelete && (
               <button
                 type="button"
-                className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+                className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                 onClick={() => { onDelete(folder); setContextMenu(false) }}
               >
                 Elimina

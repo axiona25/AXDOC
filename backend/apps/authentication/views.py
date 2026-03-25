@@ -15,6 +15,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .token_utils import issue_refresh_for_user, AxdocTokenRefreshSerializer
+
 from apps.users.serializers import UserSerializer, ChangePasswordSerializer
 from .models import PasswordResetToken, AuditLog, UserInvitation
 from .serializers import (
@@ -95,7 +97,8 @@ def _get_client_ip_and_agent(request):
     return ip, ua
 
 
-LOGIN_RATE_LIMIT_PER_MINUTE = 10
+# Limite IP (anti brute-force). Il lockout per account resta su failed_login_attempts.
+LOGIN_RATE_LIMIT_PER_MINUTE = 30
 
 
 class LoginView(APIView):
@@ -180,6 +183,7 @@ class LoginView(APIView):
         if getattr(user, "mfa_enabled", False):
             mfa_pending_token = _create_mfa_pending_token(user)
             AuditLog.log(user, "LOGIN", {"mfa_pending": True}, request)
+            cache.delete(rate_key)
             return Response(
                 {
                     "mfa_required": True,
@@ -188,10 +192,11 @@ class LoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = issue_refresh_for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         AuditLog.log(user, "LOGIN", {}, request)
+        cache.delete(rate_key)
 
         return Response(
             {
@@ -230,6 +235,8 @@ class LogoutView(APIView):
 
 class RefreshTokenView(TokenRefreshView):
     """POST /api/auth/refresh/ — rinnovo access token."""
+
+    serializer_class = AxdocTokenRefreshSerializer
 
 
 class PasswordResetRequestView(APIView):
@@ -376,7 +383,7 @@ class InviteUserView(APIView):
     POST /api/auth/invite/
     Solo ADMIN. Crea UserInvitation, invia email con link /accept-invitation/{token}.
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         serializer = InviteUserSerializer(data=request.data)
@@ -465,6 +472,9 @@ class AcceptInvitationView(APIView):
             role=inv.role,
             must_change_password=False,
         )
+        if inv.organizational_unit and inv.organizational_unit.tenant_id:
+            user.tenant_id = inv.organizational_unit.tenant_id
+            user.save(update_fields=["tenant"])
         if inv.organizational_unit_id:
             from apps.organizations.models import OrganizationalUnitMembership
             OrganizationalUnitMembership.objects.create(
@@ -483,7 +493,7 @@ class AcceptInvitationView(APIView):
             recipient_list=[user.email],
             fail_silently=True,
         )
-        refresh = RefreshToken.for_user(user)
+        refresh = issue_refresh_for_user(user)
         return Response(
             {
                 "access": str(refresh.access_token),
@@ -638,7 +648,7 @@ class MFAVerifyView(APIView):
                 {"detail": "Codice non valido."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        refresh = RefreshToken.for_user(user)
+        refresh = issue_refresh_for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         AuditLog.log(user, "LOGIN", {"mfa_verified": True}, request)
@@ -707,7 +717,7 @@ def sso_jwt_redirect_view(request):
     user = request.user
     if not isinstance(user, User):
         user = User.objects.get(pk=user.pk)
-    refresh = RefreshToken.for_user(user)
+    refresh = issue_refresh_for_user(user)
     access = str(refresh.access_token)
     refresh_str = str(refresh)
     AuditLog.log(user, "LOGIN", {"sso": True}, request)
@@ -720,7 +730,7 @@ def sso_jwt_redirect_view(request):
 
 class LDAPStatusView(APIView):
     """GET /api/admin/ldap/status/ — stato connessione LDAP (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         if not getattr(settings, "LDAP_ENABLED", False):
@@ -749,7 +759,7 @@ class LDAPStatusView(APIView):
 
 class LDAPSyncView(APIView):
     """POST /api/admin/ldap/sync/ — avvia sincronizzazione utenti LDAP (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         if not getattr(settings, "LDAP_ENABLED", False):

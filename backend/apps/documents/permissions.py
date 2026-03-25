@@ -9,6 +9,8 @@ def _documents_queryset_filter(user):
     """Restituisce un Q per filtrare Document che l'utente può vedere (per list)."""
     if not user or not user.is_authenticated:
         return Q(pk__in=[])
+    if getattr(user, "is_superuser", False):
+        return Q()
     # Utenti ospiti: solo documenti con DocumentPermission esplicita (FASE 17)
     if getattr(user, "user_type", "internal") == "guest":
         return Q(user_permissions__user=user, user_permissions__can_read=True)
@@ -62,6 +64,8 @@ class CanAccessDocument(permissions.BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
+        if getattr(user, "is_superuser", False):
+            return True
         if getattr(user, "role", None) == "ADMIN":
             return True
         # Utenti ospiti: solo documenti con permesso esplicito (FASE 17)

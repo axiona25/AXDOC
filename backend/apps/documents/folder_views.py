@@ -7,16 +7,27 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from apps.organizations.mixins import TenantFilterMixin
 from .models import Folder, Document
 from .serializers import FolderListSerializer, FolderDetailSerializer, FolderCreateSerializer
 
 
-def _visible_folder_ids(user):
+def _visible_folder_ids(user, request=None):
     """Folder IDs visibili all'utente: creati da lui o con almeno un documento accessibile."""
     if not user or not user.is_authenticated:
         return set()
+    tenant = getattr(request, "tenant", None) if request else None
+    superuser = getattr(user, "is_superuser", False)
+
+    def scope(qs):
+        if superuser or not tenant or not hasattr(qs.model, "tenant"):
+            return qs
+        if tenant.slug == "default":
+            return qs.filter(Q(tenant=tenant) | Q(tenant__isnull=True))
+        return qs.filter(tenant=tenant)
+
     if getattr(user, "role", None) == "ADMIN":
-        return set(Folder.objects.filter(is_deleted=False).values_list("id", flat=True))
+        return set(scope(Folder.objects.filter(is_deleted=False)).values_list("id", flat=True))
     from apps.organizations.models import OrganizationalUnitMembership
     user_ou_ids = list(
         OrganizationalUnitMembership.objects.filter(user=user).values_list("organizational_unit_id", flat=True)
@@ -27,21 +38,22 @@ def _visible_folder_ids(user):
         | Q(ou_permissions__organizational_unit_id__in=user_ou_ids, ou_permissions__can_read=True)
     )
     folder_ids = set(
-        Document.objects.filter(doc_filters).exclude(folder_id__isnull=True).values_list("folder_id", flat=True)
+        scope(Document.objects.filter(doc_filters)).exclude(folder_id__isnull=True).values_list("folder_id", flat=True)
     )
     created_folder_ids = set(
-        Folder.objects.filter(is_deleted=False, created_by=user).values_list("id", flat=True)
+        scope(Folder.objects.filter(is_deleted=False, created_by=user)).values_list("id", flat=True)
     )
     return folder_ids | created_folder_ids
 
 
-class FolderViewSet(viewsets.ModelViewSet):
+class FolderViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """CRUD cartelle con gerarchia e breadcrumb."""
     permission_classes = [IsAuthenticated]
+    queryset = Folder.objects.filter(is_deleted=False)
 
     def get_queryset(self) -> QuerySet:
-        qs = Folder.objects.filter(is_deleted=False)
-        visible = _visible_folder_ids(self.request.user)
+        qs = super().get_queryset()
+        visible = _visible_folder_ids(self.request.user, self.request)
         if visible is not None and getattr(self.request.user, "role", None) != "ADMIN":
             qs = qs.filter(Q(id__in=visible) | Q(created_by=self.request.user))
         return qs.distinct()
@@ -77,11 +89,11 @@ class FolderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = FolderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        folder = Folder.objects.create(
-            name=serializer.validated_data["name"],
-            parent=serializer.validated_data.get("parent_id"),
-            created_by=request.user,
-        )
+        fk = {"name": serializer.validated_data["name"], "parent": serializer.validated_data.get("parent_id"), "created_by": request.user}
+        t = getattr(request, "tenant", None)
+        if t and not getattr(request.user, "is_superuser", False):
+            fk["tenant"] = t
+        folder = Folder.objects.create(**fk)
         return Response(
             FolderListSerializer(folder).data,
             status=status.HTTP_201_CREATED,

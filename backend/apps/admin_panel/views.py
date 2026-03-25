@@ -7,15 +7,13 @@ from django.db import connection
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-
 from apps.users.permissions import IsAdminRole
 from .models import SystemLicense, SystemSettings
 
 
 class LicenseView(APIView):
     """GET /api/admin/license/ — configurazione licenza + statistiche (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         lic = SystemLicense.get_current()
@@ -78,7 +76,7 @@ class LicenseView(APIView):
 
 class SettingsView(APIView):
     """GET/PATCH /api/admin/settings/ — impostazioni di sistema (solo ADMIN). FASE 17."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         obj = SystemSettings.get_settings()
@@ -114,7 +112,7 @@ class SettingsView(APIView):
 
 class SettingsTestEmailView(APIView):
     """POST /api/admin/settings/test_email/ — invia email di test (solo ADMIN). FASE 17."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         to_email = request.data.get("to") or request.user.email
@@ -136,7 +134,7 @@ class SettingsTestEmailView(APIView):
 
 class SettingsTestLdapView(APIView):
     """POST /api/admin/settings/test_ldap/ — testa connessione LDAP (solo ADMIN). FASE 17."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         obj = SystemSettings.get_settings()
@@ -158,7 +156,7 @@ class SettingsTestLdapView(APIView):
 
 class SystemInfoView(APIView):
     """GET /api/admin/system_info/ — versioni e stato connessioni (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         import sys
@@ -236,7 +234,7 @@ def _list_backup_files(backup_dir, pattern, backup_type, limit=10):
 
 class BackupListView(APIView):
     """GET /api/admin/backups/ — lista backup (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         opts = getattr(settings, "DBBACKUP_STORAGE_OPTIONS", {})
@@ -253,7 +251,7 @@ class BackupListView(APIView):
 
 class BackupRunView(APIView):
     """POST /api/admin/backups/run/ — avvia backup manuale (solo ADMIN)."""
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         try:

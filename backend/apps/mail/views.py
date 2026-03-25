@@ -21,9 +21,10 @@ from .serializers import (
     SendMailSerializer,
 )
 from .smtp_client import send_email
+from apps.organizations.mixins import TenantFilterMixin
 
 
-class MailAccountViewSet(viewsets.ModelViewSet):
+class MailAccountViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """CRUD account di posta. Solo ADMIN."""
 
     queryset = MailAccount.objects.all()
@@ -34,8 +35,8 @@ class MailAccountViewSet(viewsets.ModelViewSet):
             return MailAccountCreateSerializer
         return MailAccountSerializer
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    def get_perform_create_kwargs(self, serializer):
+        return {"created_by": self.request.user}
 
     @action(detail=True, methods=["post"], url_path="test_connection")
     def test_connection(self, request, pk=None):

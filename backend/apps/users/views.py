@@ -1,17 +1,22 @@
 """
 ViewSet utenti (RF-011..RF-020) e import massivo (RF-017).
 """
+import hashlib
+import json
+
 from django.db import models
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound, PermissionDenied
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from django.contrib.auth import get_user_model
 
-from .models import User, UserGroup, UserGroupMembership
+from .models import User, UserGroup, UserGroupMembership, ConsentRecord, CONSENT_TYPE_CHOICES
 from .serializers import (
     UserSerializer,
     UserCreateSerializer,
@@ -21,15 +26,25 @@ from .serializers import (
     UserGroupSerializer,
     UserGroupDetailSerializer,
     UserGroupMembershipSerializer,
+    ConsentRecordSerializer,
 )
 from .permissions import IsAdminOrSelf, IsAdminRole
 from .guest_permissions import IsInternalUser
 from .importers import UserImporter
+from apps.organizations.mixins import TenantFilterMixin
 
 User = get_user_model()
 
 
-class UserViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Utenti"], summary="Lista utenti"),
+    create=extend_schema(tags=["Utenti"], summary="Crea utente"),
+    retrieve=extend_schema(tags=["Utenti"], summary="Dettaglio utente"),
+    update=extend_schema(tags=["Utenti"], summary="Aggiorna utente"),
+    partial_update=extend_schema(tags=["Utenti"], summary="Aggiorna parziale utente"),
+    destroy=extend_schema(tags=["Utenti"], summary="Elimina utente"),
+)
+class UserViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     CRUD utenti.
     list, create, destroy: solo ADMIN.
@@ -56,6 +71,10 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
+        if self.action in ("my_consents", "export_my_data"):
+            return [IsAuthenticated()]
+        if self.action == "anonymize":
+            return [IsAuthenticated(), IsAdminRole(), IsInternalUser()]
         if self.action in (
             "list",
             "create",
@@ -138,6 +157,113 @@ class UserViewSet(viewsets.ModelViewSet):
         """GET /api/users/me/ — profilo utente loggato."""
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get", "post"], url_path="my_consents")
+    def my_consents(self, request):
+        """GET/POST /api/users/my_consents/ — consensi GDPR correnti o nuovo record."""
+        if request.method == "GET":
+            latest = []
+            for value, _label in CONSENT_TYPE_CHOICES:
+                row = (
+                    ConsentRecord.objects.filter(user=request.user, consent_type=value)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if row:
+                    latest.append(row)
+            return Response(ConsentRecordSerializer(latest, many=True).data)
+
+        serializer = ConsentRecordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        ip = (
+            x_forwarded.split(",")[0].strip()
+            if x_forwarded
+            else request.META.get("REMOTE_ADDR")
+        )
+        record = serializer.save(
+            user=request.user,
+            ip_address=ip or None,
+            user_agent=request.META.get("HTTP_USER_AGENT", "") or "",
+        )
+        if record.consent_type == "privacy_policy" and record.granted:
+            User.objects.filter(pk=request.user.pk).update(
+                privacy_accepted_at=timezone.now()
+            )
+        return Response(ConsentRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="export_my_data")
+    def export_my_data(self, request):
+        """GET /api/users/export_my_data/ — portabilità GDPR (JSON)."""
+        from apps.authentication.models import AuditLog
+        from apps.documents.models import Document
+
+        user = request.user
+        data = {
+            "personal_info": {
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone": getattr(user, "phone", "") or "",
+                "role": user.role,
+                "user_type": getattr(user, "user_type", "") or "",
+                "date_joined": user.date_joined.isoformat() if user.date_joined else None,
+            },
+            "consents": list(
+                ConsentRecord.objects.filter(user=user).values(
+                    "consent_type", "version", "granted", "created_at"
+                )
+            ),
+            "documents_created": list(
+                Document.objects.filter(created_by=user, is_deleted=False).values(
+                    "id", "title", "status", "created_at"
+                )[:1000]
+            ),
+            "audit_log": list(
+                AuditLog.objects.filter(user=user).values(
+                    "action", "detail", "timestamp"
+                ).order_by("-timestamp")[:500]
+            ),
+            "exported_at": timezone.now().isoformat(),
+        }
+        response = HttpResponse(
+            json.dumps(data, default=str, indent=2),
+            content_type="application/json; charset=utf-8",
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="axdoc_my_data_{user.id}.json"'
+        )
+        return response
+
+    @action(detail=True, methods=["post"], url_path="anonymize")
+    def anonymize(self, request, pk=None):
+        """POST /api/users/{id}/anonymize/ — diritto all'oblio (solo ADMIN)."""
+        from apps.authentication.models import AuditLog
+
+        if request.user.role != "ADMIN":
+            return Response({"detail": "Solo ADMIN."}, status=status.HTTP_403_FORBIDDEN)
+        target = self.get_object()
+        if target == request.user:
+            return Response(
+                {"detail": "Non puoi anonimizzare te stesso."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        anon_hash = hashlib.sha256(str(target.id).encode()).hexdigest()[:12]
+        target.email = f"anonymized_{anon_hash}@deleted.local"
+        target.first_name = "Utente"
+        target.last_name = "Anonimizzato"
+        target.phone = ""
+        target.is_active = False
+        target.is_deleted = True
+        target.save()
+        ConsentRecord.objects.filter(user=target).delete()
+        AuditLog.log(
+            request.user,
+            "USER_ANONYMIZED",
+            {"anonymized_user_id": str(target.id)},
+            request,
+        )
+        return Response({"detail": "Utente anonimizzato."})
 
     @action(detail=False, methods=["post"], url_path="create_manual")
     def create_manual(self, request):
@@ -452,7 +578,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({"detail": "type deve essere document o dossier."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserGroupViewSet(viewsets.ModelViewSet):
+class UserGroupViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     CRUD gruppi utenti (RF-016).
     list, create, update, destroy: solo ADMIN.
@@ -479,8 +605,8 @@ class UserGroupViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    def get_perform_create_kwargs(self, serializer):
+        return {"created_by": self.request.user}
 
     @action(detail=True, methods=["post"], url_path="add_members")
     def add_members(self, request, pk=None):

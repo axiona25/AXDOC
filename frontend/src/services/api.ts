@@ -11,6 +11,7 @@ export const api = axios.create({
 
 const ACCESS_TOKEN_KEY = 'axdoc_access_token'
 const REFRESH_TOKEN_KEY = 'axdoc_refresh_token'
+const TENANT_CONTEXT_KEY = 'axdoc_tenant_context_id'
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
@@ -28,6 +29,7 @@ export function setTokens(access: string, refresh: string): void {
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(TENANT_CONTEXT_KEY)
 }
 
 async function refreshToken(): Promise<string> {
@@ -46,6 +48,10 @@ api.interceptors.request.use((config) => {
   const token = getAccessToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const tenantCtx = localStorage.getItem(TENANT_CONTEXT_KEY)
+  if (tenantCtx) {
+    config.headers['X-Tenant-ID'] = tenantCtx
   }
   return config
 })

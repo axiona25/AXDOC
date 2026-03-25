@@ -1,6 +1,7 @@
 """
 AXDOC — Django base settings.
 """
+import os
 from pathlib import Path
 import environ
 
@@ -8,7 +9,12 @@ env = environ.Env()
 environ.Env.read_env()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SECRET_KEY = env("SECRET_KEY")
+# Produzione: usare DJANGO_SECRET_KEY (obbligatorio in config.settings.production).
+# Dev: fallback esplicito solo per ambiente locale (non usare in produzione).
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    env.str("SECRET_KEY", default="django-insecure-dev-only-key-change-in-production"),
+)
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -49,6 +55,7 @@ INSTALLED_APPS = [
     "social_django",
     "dbbackup",
     "django_celery_beat",
+    "drf_spectacular",
 ]
 
 # Backup (FASE 15, RNF-022, RNF-024)
@@ -79,6 +86,7 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [env("REDIS_URL", default="redis://redis:6379/0")],
+            "prefix": "axdoc:",
         },
     },
 }
@@ -91,8 +99,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.organizations.middleware.TenantMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "config.middleware.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -171,18 +181,71 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "config.pagination.StandardPagination",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "AXDOC API",
+    "DESCRIPTION": """
+API per il sistema di gestione documentale AXDOC.
+
+## Autenticazione
+Tutte le API richiedono autenticazione JWT Bearer.
+Ottieni il token con `POST /api/auth/login/` e usa l'header:
+`Authorization: Bearer <access_token>`
+
+## Multi-tenancy
+Il tenant è nel claim JWT `tenant_id` e/o nell'header `X-Tenant-ID`.
+    """,
+    "VERSION": "1.0.0",
+    "CONTACT": {"email": "support@axdoc.it"},
+    "LICENSE": {"name": "Proprietary"},
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SECURITY": [{"BearerAuth": []}],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "TAGS": [
+        {"name": "Autenticazione", "description": "Login, token, password"},
+        {"name": "Utenti", "description": "Utenti e profili"},
+        {"name": "Organizzazioni", "description": "UO, tenant"},
+        {"name": "Documenti", "description": "Documenti, cartelle, upload"},
+        {"name": "Protocolli", "description": "Protocollazione"},
+        {"name": "Fascicoli", "description": "Fascicoli (dossier)"},
+        {"name": "Workflow", "description": "Template e istanze workflow"},
+        {"name": "Firma Digitale", "description": "Richieste firma, conservazione"},
+        {"name": "Metadati", "description": "Strutture metadati"},
+        {"name": "Archivio", "description": "Conservazione, pacchetti informativi"},
+        {"name": "Condivisione", "description": "Link condivisione"},
+        {"name": "Notifiche", "description": "Notifiche utente"},
+        {"name": "Chat", "description": "Messaggistica"},
+        {"name": "Posta", "description": "Email e PEC"},
+        {"name": "Ricerca", "description": "Ricerca full-text"},
+        {"name": "Dashboard", "description": "Statistiche ed export"},
+        {"name": "Audit", "description": "Log attività"},
+        {"name": "GDPR", "description": "Consensi e portabilità"},
+        {"name": "Sicurezza", "description": "Incidenti NIS2"},
+    ],
+    "PREPROCESSING_HOOKS": ["drf_spectacular.hooks.preprocess_exclude_path_format"],
+    "ENUM_NAME_OVERRIDES": {},
+    "SCHEMA_PATH_PREFIX": "/api/",
 }
 
 from datetime import timedelta
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
-        minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15)
+        minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=30)
     ),
     "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7)
+        hours=env.int("JWT_REFRESH_TOKEN_LIFETIME_HOURS", default=8)
     ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -195,10 +258,15 @@ CORS_ALLOWED_ORIGINS = env.list(
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
-# Security headers (RNF-005, FASE 14)
+# Security headers (RNF-005, FASE 14, NIS2)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+SESSION_COOKIE_AGE = 3600 * 8
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True
 
 # Password validation (FASE 14)
 AUTH_PASSWORD_VALIDATORS = [
@@ -218,6 +286,12 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# OCR / AI documenti (FASE 30)
+OCR_TESSERACT_LANG = env("OCR_TESSERACT_LANG", default="ita+eng")
+OCR_MAX_PDF_PAGES = env.int("OCR_MAX_PDF_PAGES", default=30)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",

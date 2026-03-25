@@ -58,6 +58,7 @@ ACTION_CHOICES = [
     ("DOCUMENT_SIGNED", "Documento Firmato"),
     ("DOCUMENT_CONSERVED", "Documento in Conservazione"),
     ("DOCUMENT_ENCRYPTED", "Documento Cifrato"),
+    ("USER_ANONYMIZED", "Utente anonimizzato"),
 ]
 
 
@@ -65,6 +66,13 @@ class AuditLog(models.Model):
     """Registro azioni per tracciabilità (RF-010, RNF-007)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+        null=True,
+        blank=True,
+    )
     user = models.ForeignKey(
         "users.User",
         null=True,
@@ -85,6 +93,7 @@ class AuditLog(models.Model):
     def log(cls, user, action, detail=None, request=None):
         ip = None
         ua = ""
+        tenant = None
         if request:
             x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
             ip = (
@@ -93,8 +102,17 @@ class AuditLog(models.Model):
                 else request.META.get("REMOTE_ADDR")
             )
             ua = request.META.get("HTTP_USER_AGENT", "") or ""
+            tenant = getattr(request, "tenant", None)
+        if tenant is None:
+            try:
+                from apps.organizations.middleware import get_current_tenant
+
+                tenant = get_current_tenant()
+            except Exception:
+                tenant = None
         cls.objects.create(
             user=user,
+            tenant=tenant,
             action=action,
             detail=detail or {},
             ip_address=ip,

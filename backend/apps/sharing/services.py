@@ -36,10 +36,20 @@ def create_share_link(
     if password_protected:
         access_password = make_password(password)
 
+    tenant = getattr(request, "tenant", None)
+    if not tenant and document and getattr(document, "tenant_id", None):
+        from apps.organizations.models import Tenant
+
+        tenant = Tenant.objects.filter(pk=document.tenant_id).first()
+    if not tenant and protocol and getattr(protocol, "tenant_id", None):
+        from apps.organizations.models import Tenant
+
+        tenant = Tenant.objects.filter(pk=protocol.tenant_id).first()
     share = ShareLink.objects.create(
         target_type=target_type,
         document=document,
         protocol=protocol,
+        tenant=tenant,
         shared_by=request.user,
         recipient_type=recipient_type,
         recipient_user=recipient_user,

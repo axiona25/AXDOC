@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, UserGroup, UserGroupMembership
+from .models import User, UserGroup, UserGroupMembership, ConsentRecord
 
 
 @admin.register(User)
@@ -69,3 +69,11 @@ class UserGroupAdmin(admin.ModelAdmin):
 class UserGroupMembershipAdmin(admin.ModelAdmin):
     list_display = ["group", "user", "added_at"]
     list_filter = ["group"]
+
+
+@admin.register(ConsentRecord)
+class ConsentRecordAdmin(admin.ModelAdmin):
+    list_display = ["user", "consent_type", "version", "granted", "created_at"]
+    list_filter = ["consent_type", "granted"]
+    search_fields = ["user__email"]
+    readonly_fields = ["id", "created_at"]

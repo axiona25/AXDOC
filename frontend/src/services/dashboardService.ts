@@ -49,3 +49,45 @@ export function getRecentDocuments(): Promise<{ results: RecentDocumentItem[] }>
 export function getMyTasks(): Promise<{ results: MyTaskItem[] }> {
   return api.get('/api/dashboard/my_tasks/').then((r) => r.data)
 }
+
+export interface MonthlyDataPoint {
+  month: string
+  count: number
+}
+
+export interface ProtocolTrendPoint {
+  month: string
+  direction: string
+  count: number
+}
+
+export interface WorkflowStats {
+  active: number
+  completed_total: number
+  completed_this_month: number
+  rejected: number
+  cancelled: number
+  avg_completion_hours: number | null
+}
+
+export interface StorageTrendPoint {
+  month: string
+  bytes: number
+  mb: number
+}
+
+export function getDocumentsTrend(months = 12): Promise<{ results: MonthlyDataPoint[] }> {
+  return api.get('/api/dashboard/documents_trend/', { params: { months } }).then((r) => r.data)
+}
+
+export function getProtocolsTrend(months = 12): Promise<{ results: ProtocolTrendPoint[] }> {
+  return api.get('/api/dashboard/protocols_trend/', { params: { months } }).then((r) => r.data)
+}
+
+export function getWorkflowStats(): Promise<WorkflowStats> {
+  return api.get('/api/dashboard/workflow_stats/').then((r) => r.data)
+}
+
+export function getStorageTrend(months = 12): Promise<{ results: StorageTrendPoint[] }> {
+  return api.get('/api/dashboard/storage_trend/', { params: { months } }).then((r) => r.data)
+}

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import type { UserRole } from '../../types/auth'
+import { AuthenticatedLayout } from '../layout/AuthenticatedLayout'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -31,5 +32,5 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/unauthorized" replace />
   }
 
-  return <>{children}</>
+  return <AuthenticatedLayout>{children}</AuthenticatedLayout>
 }

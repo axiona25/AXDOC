@@ -44,10 +44,16 @@ class InformationPackageSerializer(serializers.ModelSerializer):
         ]
 
     def get_document_count(self, obj):
+        if hasattr(obj, "doc_link_count"):
+            return obj.doc_link_count
         return obj.documents.count() if hasattr(obj, "documents") else 0
 
     def get_protocol_count(self, obj):
+        if hasattr(obj, "proto_link_count"):
+            return obj.proto_link_count
         return obj.protocols.count() if hasattr(obj, "protocols") else 0
 
     def get_dossier_count(self, obj):
+        if hasattr(obj, "dossier_link_count"):
+            return obj.dossier_link_count
         return obj.dossiers.count() if hasattr(obj, "dossiers") else 0

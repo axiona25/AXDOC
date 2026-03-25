@@ -10,6 +10,7 @@ export interface User {
   user_type?: UserType
   is_guest?: boolean
   role: UserRole
+  is_superuser?: boolean
   avatar: string | null
   phone: string
   must_change_password?: boolean

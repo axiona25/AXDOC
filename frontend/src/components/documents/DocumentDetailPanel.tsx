@@ -9,6 +9,7 @@ import {
   uploadAttachment,
   deleteAttachment,
   updateDocumentMetadata,
+  runOCR,
 } from '../../services/documentService'
 import { getMetadataStructure } from '../../services/metadataService'
 import type { MetadataStructure } from '../../types/metadata'
@@ -32,6 +33,8 @@ import { WorkflowTab } from './WorkflowTab'
 import { DocumentChatButton } from '../chat/DocumentChatButton'
 import { useAuthStore } from '../../store/authStore'
 import { VersionHistoryModal } from './VersionHistoryModal'
+import { OCRStatusBadge } from './OCRStatusBadge'
+import { ClassificationSuggestions } from './ClassificationSuggestions'
 
 interface DocumentDetailPanelProps {
   document: DocumentItem | null
@@ -67,6 +70,7 @@ export function DocumentDetailPanel({
   const [unlocking, setUnlocking] = useState(false)
   const [attachFile, setAttachFile] = useState<File | null>(null)
   const [attachDesc, setAttachDesc] = useState('')
+  const [ocrRetrying, setOcrRetrying] = useState(false)
   const user = useAuthStore((s) => s.user)
   const isLockedByMe = doc?.locked_by && user && String(doc.locked_by) === String(user.id)
 
@@ -179,16 +183,16 @@ export function DocumentDetailPanel({
 
   return (
     <>
-      <div className="flex h-full flex-col border-l border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="truncate text-lg font-semibold text-slate-800">{doc.title}</h2>
+      <div className="flex h-full flex-col border-l border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+          <h2 className="truncate text-lg font-semibold text-slate-800 dark:text-slate-100">{doc.title}</h2>
           <div className="flex items-center gap-2">
             <DocumentChatButton documentId={doc.id} documentTitle={doc.title} />
             {onVisualize && (
               <button
                 type="button"
                 onClick={onVisualize}
-                className="rounded bg-slate-100 px-2 py-1 text-sm text-slate-700 hover:bg-slate-200"
+                className="rounded bg-slate-100 px-2 py-1 text-sm text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
               >
                 Visualizza
               </button>
@@ -216,14 +220,14 @@ export function DocumentDetailPanel({
           onUnlock={handleUnlock}
           unlocking={unlocking}
         />
-        <div className="border-b border-slate-200 px-3">
+        <div className="border-b border-slate-200 px-3 dark:border-slate-700">
           <nav className="flex flex-wrap gap-x-2 gap-y-1">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className={`border-b-2 py-1.5 text-xs font-medium whitespace-nowrap ${tab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-800'}`}
+                className={`border-b-2 py-1.5 text-xs font-medium whitespace-nowrap ${tab === t.id ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-300' : 'border-transparent text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
               >
                 {t.label}
               </button>
@@ -233,16 +237,46 @@ export function DocumentDetailPanel({
         <div className="flex-1 overflow-auto p-4">
           {tab === 'info' && (
             <div className="space-y-3 text-sm">
-              <p><span className="font-medium text-slate-600">Stato:</span> {doc.status}</p>
-              <p><span className="font-medium text-slate-600">Versione corrente:</span> {doc.current_version}</p>
+              <p><span className="font-medium text-slate-600 dark:text-slate-400">Stato:</span>{' '}
+                <span className="text-slate-800 dark:text-slate-100">{doc.status}</span></p>
+              <p><span className="font-medium text-slate-600 dark:text-slate-400">Versione corrente:</span>{' '}
+                <span className="text-slate-800 dark:text-slate-100">{doc.current_version}</span></p>
+              <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Testo estratto / OCR
+                </p>
+                <OCRStatusBadge
+                  status={doc.ocr_status}
+                  confidence={doc.ocr_confidence}
+                  error={doc.ocr_error}
+                  retrying={ocrRetrying}
+                  onRetry={
+                    doc.can_write !== false || user?.role === 'ADMIN'
+                      ? async () => {
+                          setOcrRetrying(true)
+                          try {
+                            await runOCR(doc.id)
+                            onRefresh()
+                          } catch {
+                            /* toast opzionale */
+                          } finally {
+                            setOcrRetrying(false)
+                          }
+                        }
+                      : undefined
+                  }
+                />
+              </div>
+              <ClassificationSuggestions document={doc} onRefresh={onRefresh} />
               {doc.description && (
-                <p><span className="font-medium text-slate-600">Descrizione:</span> {doc.description}</p>
+                <p><span className="font-medium text-slate-600 dark:text-slate-400">Descrizione:</span>{' '}
+                  <span className="text-slate-800 dark:text-slate-100">{doc.description}</span></p>
               )}
               <div className="flex flex-wrap gap-2 pt-2">
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
+                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 dark:hover:bg-indigo-500"
                 >
                   Scarica
                 </button>

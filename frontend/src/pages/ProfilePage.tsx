@@ -31,25 +31,40 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="text-2xl font-bold text-slate-800">Profilo</h1>
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Profilo</h1>
       {user && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
-          <p className="text-slate-700">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-slate-700 dark:text-slate-200">
             <span className="font-medium">Nome:</span> {user.first_name} {user.last_name}
           </p>
-          <p className="text-slate-700">
+          <p className="text-slate-700 dark:text-slate-200">
             <span className="font-medium">Email:</span> {user.email}
           </p>
-          <p className="text-slate-700">
+          <p className="text-slate-700 dark:text-slate-200">
             <span className="font-medium">Ruolo:</span> {user.role}
           </p>
         </div>
       )}
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-800">Cambio password</h2>
-        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-          <p className="text-sm text-slate-600">Modifica la password del tuo account.</p>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Privacy e GDPR</h2>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Consensi, esportazione dati e informazioni sul trattamento.
+          </p>
+          <Link
+            to="/privacy"
+            className="mt-2 inline-block rounded bg-slate-200 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:hover:bg-slate-500"
+          >
+            Apri privacy e consensi
+          </Link>
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Cambio password</h2>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-sm text-slate-600 dark:text-slate-300">Modifica la password del tuo account.</p>
           <Link
             to="/change-password"
             className="mt-2 inline-block rounded bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"

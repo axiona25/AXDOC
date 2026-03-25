@@ -98,7 +98,7 @@ export function GroupsPage() {
           </div>
         </div>
       </header>
-      <main className="p-6">
+      <div className="p-6">
         <div className="mb-4 flex flex-wrap gap-2">
           <input
             type="text"
@@ -224,7 +224,7 @@ export function GroupsPage() {
             {groups.length === 0 && <p className="p-4 text-slate-500">Nessun gruppo trovato.</p>}
           </div>
         )}
-      </main>
+      </div>
 
       {/* Modal creazione gruppo */}
       {createOpen && (

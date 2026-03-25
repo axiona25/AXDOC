@@ -24,6 +24,13 @@ ARCHIVE_STAGE_CHOICES = [
 class Dossier(models.Model):
     """Fascicolo con titolo, identificatore univoco, responsabile e permessi (RF-064..RF-069, FASE 22)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="dossiers",
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=500)
     identifier = models.CharField(max_length=100, unique=True, blank=True)
     description = models.TextField(blank=True)

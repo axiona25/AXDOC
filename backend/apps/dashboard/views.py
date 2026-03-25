@@ -1,8 +1,13 @@
 """
 API Dashboard e reportistica (FASE 14).
 """
-from django.db.models import Count, Sum
+from dateutil.relativedelta import relativedelta
+
+from django.db.models import Avg, Count, F, Sum
+from django.db.models import DurationField, ExpressionWrapper
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -19,6 +24,177 @@ from apps.protocols.models import Protocol
 def _documents_qs(user):
     """Documenti accessibili all'utente."""
     return Document.objects.filter(is_deleted=False).filter(_documents_queryset_filter(user))
+
+
+def _user_protocol_ou_ids(user):
+    from apps.organizations.models import OrganizationalUnitMembership
+
+    return set(
+        OrganizationalUnitMembership.objects.filter(user=user).values_list(
+            "organizational_unit_id", flat=True
+        )
+    )
+
+
+class DocumentsTrendView(APIView):
+    """Serie temporale documenti creati per mese."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        months = int(request.query_params.get("months", 12))
+        now = timezone.now()
+        start = (now - relativedelta(months=months)).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
+        qs = Document.objects.filter(is_deleted=False, created_at__gte=start)
+        if getattr(request.user, "role", None) != "ADMIN":
+            qs = qs.filter(_documents_queryset_filter(request.user))
+
+        data = (
+            qs.annotate(month=TruncMonth("created_at"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        return Response(
+            {
+                "results": [
+                    {"month": d["month"].strftime("%Y-%m"), "count": d["count"]}
+                    for d in data
+                    if d["month"] is not None
+                ]
+            }
+        )
+
+
+class ProtocolsTrendView(APIView):
+    """Protocolli per mese e direzione (in/out)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        months = int(request.query_params.get("months", 12))
+        now = timezone.now()
+        start = (now - relativedelta(months=months)).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
+        qs = Protocol.objects.filter(created_at__gte=start)
+        if getattr(request.user, "role", None) != "ADMIN":
+            ou_ids = _user_protocol_ou_ids(request.user)
+            if not ou_ids:
+                return Response({"results": []})
+            qs = qs.filter(organizational_unit_id__in=ou_ids)
+
+        data = (
+            qs.annotate(month=TruncMonth("created_at"))
+            .values("month", "direction")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        out = []
+        for d in data:
+            if d["month"] is None:
+                continue
+            direction = d["direction"] or ""
+            label = "IN" if direction in ("in", "IN") else "OUT" if direction in ("out", "OUT") else direction.upper() or "—"
+            out.append(
+                {
+                    "month": d["month"].strftime("%Y-%m"),
+                    "direction": label,
+                    "count": d["count"],
+                }
+            )
+        return Response({"results": out})
+
+
+class WorkflowStatsView(APIView):
+    """Statistiche workflow (ADMIN, APPROVER, REVIEWER)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role = getattr(request.user, "role", None)
+        if role not in ("ADMIN", "APPROVER", "REVIEWER"):
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        this_month = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        active = WorkflowInstance.objects.filter(status="active").count()
+        completed_total = WorkflowInstance.objects.filter(status="completed").count()
+        completed_month = WorkflowInstance.objects.filter(
+            status="completed", completed_at__gte=this_month
+        ).count()
+        rejected = WorkflowInstance.objects.filter(status="rejected").count()
+        cancelled = WorkflowInstance.objects.filter(status="cancelled").count()
+
+        agg = WorkflowInstance.objects.filter(
+            status="completed",
+            completed_at__isnull=False,
+        ).aggregate(
+            avg_dur=Avg(
+                ExpressionWrapper(
+                    F("completed_at") - F("started_at"),
+                    output_field=DurationField(),
+                )
+            )
+        )
+        avg_hours = None
+        if agg["avg_dur"]:
+            avg_hours = round(agg["avg_dur"].total_seconds() / 3600, 1)
+
+        return Response(
+            {
+                "active": active,
+                "completed_total": completed_total,
+                "completed_this_month": completed_month,
+                "rejected": rejected,
+                "cancelled": cancelled,
+                "avg_completion_hours": avg_hours,
+            }
+        )
+
+
+class StorageTrendView(APIView):
+    """Trend consumo storage (somma dimensioni versioni caricate per mese)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        months = int(request.query_params.get("months", 12))
+        now = timezone.now()
+        start = (now - relativedelta(months=months)).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
+        qs = DocumentVersion.objects.filter(created_at__gte=start)
+        if getattr(request.user, "role", None) != "ADMIN":
+            doc_ids = Document.objects.filter(is_deleted=False).filter(
+                _documents_queryset_filter(request.user)
+            ).values_list("id", flat=True)
+            qs = qs.filter(document_id__in=doc_ids)
+
+        data = (
+            qs.annotate(month=TruncMonth("created_at"))
+            .values("month")
+            .annotate(bytes_total=Sum("file_size"))
+            .order_by("month")
+        )
+        return Response(
+            {
+                "results": [
+                    {
+                        "month": d["month"].strftime("%Y-%m"),
+                        "bytes": d["bytes_total"] or 0,
+                        "mb": round((d["bytes_total"] or 0) / (1024 * 1024), 2),
+                    }
+                    for d in data
+                    if d["month"] is not None
+                ]
+            }
+        )
 
 
 class DashboardStatsView(APIView):

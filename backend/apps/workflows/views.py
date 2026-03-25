@@ -29,15 +29,25 @@ from .notifications import (
     notify_informed,
 )
 from apps.users.permissions import IsAdminRole
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 
-class WorkflowTemplateViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Workflow"], summary="Lista template workflow"),
+    create=extend_schema(tags=["Workflow"], summary="Crea template workflow"),
+    retrieve=extend_schema(tags=["Workflow"], summary="Dettaglio template"),
+    update=extend_schema(tags=["Workflow"], summary="Aggiorna template"),
+    partial_update=extend_schema(tags=["Workflow"], summary="Aggiorna parziale template"),
+    destroy=extend_schema(tags=["Workflow"], summary="Elimina template"),
+)
+class WorkflowTemplateViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """CRUD template workflow. Create/update/destroy solo ADMIN (RF-048, RF-050). Solo utenti interni (FASE 17)."""
     queryset = WorkflowTemplate.objects.filter(is_deleted=False)
     permission_classes = [IsAuthenticated, IsInternalUser]
 
     def get_queryset(self):
-        qs = WorkflowTemplate.objects.filter(is_deleted=False)
+        qs = super().get_queryset()
         if self.request.query_params.get("mine") == "true" and self.request.user:
             qs = qs.filter(created_by=self.request.user)
         if getattr(self, "action", None) == "retrieve":
@@ -61,8 +71,8 @@ class WorkflowTemplateViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminRole()]
         return [IsAuthenticated()]
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+    def get_perform_create_kwargs(self, serializer):
+        return {"created_by": self.request.user}
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -116,7 +126,7 @@ class WorkflowTemplateViewSet(viewsets.ModelViewSet):
 class WorkflowStepViewSet(viewsets.ModelViewSet):
     """CRUD step (nested sotto template). Solo ADMIN."""
     serializer_class = WorkflowStepSerializer
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAdminRole]
 
     def get_queryset(self):
         template_id = self.kwargs.get("template_pk")
@@ -149,7 +159,7 @@ class WorkflowStepViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
-class WorkflowInstanceViewSet(viewsets.ModelViewSet):
+class WorkflowInstanceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     Istanze workflow: lista, dettaglio, avvio, azione step (RF-053..RF-056).
     Solo utenti interni.
@@ -157,10 +167,11 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
     serializer_class = WorkflowInstanceSerializer
     permission_classes = [IsAuthenticated, IsInternalUser]
     http_method_names = ["get", "post", "head", "options"]
+    queryset = WorkflowInstance.objects.all()
 
     def get_queryset(self):
         user = self.request.user
-        qs = WorkflowInstance.objects.all().select_related(
+        qs = super().get_queryset().select_related(
             "template", "document", "started_by"
         ).prefetch_related(
             "step_instances",
@@ -237,11 +248,13 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             )
 
         # Crea l'istanza
+        tenant = getattr(request, "tenant", None)
         instance = WorkflowInstance.objects.create(
             template=template,
             document=document,
             started_by=request.user,
             current_step_order=steps.first().order,
+            tenant=tenant,
         )
 
         # Crea le step instances e assegna gli utenti
@@ -299,6 +312,9 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             first_si.save(update_fields=["status", "started_at"])
             notify_step_assigned(first_si)
             notify_consulted(first_si)
+
+        document.status = Document.STATUS_IN_REVIEW
+        document.save(update_fields=["status", "updated_at"])
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -361,6 +377,9 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
             instance.status = "rejected"
             instance.completed_at = timezone.now()
             instance.save(update_fields=["status", "completed_at"])
+            doc = instance.document
+            doc.status = doc.STATUS_REJECTED
+            doc.save(update_fields=["status", "updated_at"])
             notify_step_rejected(current_si, request.user)
             notify_informed(current_si, action_taken, request.user)
         else:
@@ -404,6 +423,9 @@ class WorkflowInstanceViewSet(viewsets.ModelViewSet):
                 instance.status = "completed"
                 instance.completed_at = timezone.now()
                 instance.save(update_fields=["status", "completed_at"])
+                doc = instance.document
+                doc.status = doc.STATUS_APPROVED
+                doc.save(update_fields=["status", "updated_at"])
                 notify_step_completed(current_si, request.user)
                 notify_informed(current_si, action_taken, request.user)
                 notify_workflow_completed(instance)

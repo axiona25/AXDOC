@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.users.guest_permissions import IsInternalUser
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import MetadataStructure, MetadataField
 from .serializers import (
     MetadataStructureListSerializer,
@@ -18,13 +20,21 @@ from .validators import validate_metadata_values
 from apps.users.permissions import IsAdminRole
 
 
-class MetadataStructureViewSet(viewsets.ModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Metadati"], summary="Lista strutture metadati"),
+    create=extend_schema(tags=["Metadati"], summary="Crea struttura metadati"),
+    retrieve=extend_schema(tags=["Metadati"], summary="Dettaglio struttura"),
+    update=extend_schema(tags=["Metadati"], summary="Aggiorna struttura"),
+    partial_update=extend_schema(tags=["Metadati"], summary="Aggiorna parziale struttura"),
+    destroy=extend_schema(tags=["Metadati"], summary="Elimina struttura"),
+)
+class MetadataStructureViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """CRUD strutture metadati. List/retrieve per utenti autenticati; create/update/destroy solo ADMIN. Solo utenti interni (FASE 17)."""
     queryset = MetadataStructure.objects.all()
     permission_classes = [IsAuthenticated, IsInternalUser]
 
     def get_queryset(self):
-        qs = MetadataStructure.objects.all().order_by("name")
+        qs = super().get_queryset().order_by("name")
         applicable_to = self.request.query_params.get("applicable_to")
         if applicable_to and applicable_to.strip():
             qs = qs.filter(applicable_to__contains=[applicable_to.strip()])

@@ -75,24 +75,28 @@ export function ArchivePage() {
   ]
 
   return (
-    <div className="flex flex-col rounded-lg bg-white shadow">
-      <div className="border-b border-slate-200 px-4 py-3">
+    <div className="flex flex-col rounded-lg border border-slate-200 bg-white shadow dark:border-slate-700 dark:bg-slate-800">
+      <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-800">Archivio Documentale</h1>
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Archivio Documentale</h1>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setWizardOpen(true)}
-              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 dark:hover:bg-indigo-500"
             >
               Crea PdV
             </button>
-            <span className="rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600">Massimario</span>
-            <span className="rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600">Report</span>
+            <span className="rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+              Massimario
+            </span>
+            <span className="rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+              Report
+            </span>
           </div>
         </div>
       </div>
-      <div className="flex gap-2 border-b border-slate-200 px-4">
+      <div className="flex gap-2 border-b border-slate-200 px-4 dark:border-slate-700">
         {tabs.map((t) => (
           <button
             key={t.id}

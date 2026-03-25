@@ -7,15 +7,13 @@ import {
   downloadDocument,
   deleteDocument,
   updateDocumentVisibility,
+  uploadDocument,
 } from '../services/documentService'
 import { getMetadataStructures } from '../services/metadataService'
 import type { DocumentItem, FolderItem, MyFilesTreeResponse } from '../services/documentService'
-import { getAccessToken } from '../services/api'
 import { UploadModal } from '../components/documents/UploadModal'
 import { DocumentViewer } from '../components/viewer/DocumentViewer'
 import type { MetadataStructure } from '../types/metadata'
-
-const baseURL = import.meta.env.VITE_API_URL || ''
 
 type TabId = 'personal' | 'office' | 'all'
 
@@ -94,6 +92,7 @@ export function MyFilesPage() {
     metadataStructureId?: string | null
     metadataValues?: Record<string, unknown>
     visibility?: 'personal' | 'office'
+    templateMeta?: { auto_start_workflow: boolean; workflowTemplateId: string | null } | null
   }) => {
     const form = new FormData()
     form.append('title', data.title)
@@ -105,25 +104,10 @@ export function MyFilesPage() {
       form.append('metadata_values', JSON.stringify(data.metadataValues))
     }
     form.append('file', data.file)
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      const url = `${baseURL}/api/documents/`
-      const token = getAccessToken()
-      xhr.open('POST', url)
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100))
-      })
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          loadTree()
-          loadDocuments()
-          resolve()
-        } else reject(new Error(xhr.statusText))
-      }
-      xhr.onerror = () => reject(new Error('Network error'))
-      xhr.send(form)
-    })
+    const doc = await uploadDocument(form, (p) => setUploadProgress(p))
+    loadTree()
+    loadDocuments()
+    return doc
   }
 
   const handleNewFolder = () => {

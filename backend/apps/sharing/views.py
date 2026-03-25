@@ -11,6 +11,8 @@ from rest_framework.views import APIView
 
 from .models import ShareLink, ShareAccessLog
 from .serializers import ShareLinkSerializer, ShareLinkCreateSerializer, PublicShareSerializer
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .services import create_share_link, check_share_password
 
 
@@ -33,13 +35,18 @@ def _log_access(share_link, request, action_type="view"):
     share_link.save(update_fields=["access_count", "last_accessed_at"])
 
 
-class ShareLinkViewSet(viewsets.ReadOnlyModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Condivisione"], summary="Lista link di condivisione"),
+    retrieve=extend_schema(tags=["Condivisione"], summary="Dettaglio link"),
+)
+class ShareLinkViewSet(TenantFilterMixin, viewsets.ReadOnlyModelViewSet):
     """Lista condivisioni, revoca, my_shared."""
     serializer_class = ShareLinkSerializer
     permission_classes = [IsAuthenticated]
+    queryset = ShareLink.objects.all()
 
     def get_queryset(self):
-        qs = ShareLink.objects.all().select_related("document", "protocol", "shared_by", "recipient_user")
+        qs = super().get_queryset().select_related("document", "protocol", "shared_by", "recipient_user")
         if getattr(self.request.user, "role", None) != "ADMIN":
             qs = qs.filter(shared_by=self.request.user)
         return qs.order_by("-created_at")

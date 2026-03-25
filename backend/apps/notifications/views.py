@@ -7,16 +7,28 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Notification
 from .serializers import NotificationSerializer, MarkReadSerializer
 
 
-class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+@extend_schema_view(
+    list=extend_schema(tags=["Notifiche"], summary="Lista notifiche"),
+    retrieve=extend_schema(tags=["Notifiche"], summary="Dettaglio notifica"),
+)
+class NotificationViewSet(TenantFilterMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    queryset = Notification.objects.all()
 
     def get_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user).order_by("-created_at")
+        return (
+            super()
+            .get_queryset()
+            .filter(recipient=self.request.user)
+            .order_by("-created_at")
+        )
 
     def list(self, request, *args, **kwargs):
         qs = self.get_queryset()

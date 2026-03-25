@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { CreateDossierPayload } from '../../services/dossierService'
 import { createDossier } from '../../services/dossierService'
 import { getMetadataStructures } from '../../services/metadataService'
@@ -21,9 +21,9 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [responsibleId, setResponsibleId] = useState('')
-  const [responsibleSearch, setResponsibleSearch] = useState('')
-  const [responsibleDropdownOpen, setResponsibleDropdownOpen] = useState(false)
-  const responsibleRef = useRef<HTMLDivElement>(null)
+  const [_responsibleSearch, setResponsibleSearch] = useState('')
+  const [_responsibleDropdownOpen, setResponsibleDropdownOpen] = useState(false)
+  // const _responsibleRef = useRef<HTMLDivElement>(null)
   const [ouId, setOuId] = useState('')
   const [classificationCode, setClassificationCode] = useState('')
   const [classificationLabel, setClassificationLabel] = useState('')

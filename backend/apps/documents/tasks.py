@@ -1,6 +1,7 @@
 """
-Task Celery per compressione immagini/video e generazione thumbnail.
+Task Celery per compressione immagini/video, thumbnail e estrazione testo/OCR (FASE 30).
 """
+import logging
 import os
 import subprocess
 import tempfile
@@ -18,6 +19,110 @@ JPEG_QUALITY = 82
 THUMBNAIL_SIZE = (300, 300)
 VIDEO_CRF = 28  # Qualità video (più alto = più compresso, 23=default, 28=buono per web)
 VIDEO_MAX_WIDTH = 1280
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(name="apps.documents.tasks.process_document_text_extraction")
+def process_document_text_extraction(version_id: str):
+    """
+    OCR / pdftotext / estrazione nativa → Document.extracted_text + DocumentIndex.
+    """
+    from django.utils import timezone
+
+    from apps.documents.models import Document, DocumentVersion
+    from apps.documents.ocr_service import OCRService
+    from apps.search.extractors import extract_text
+    from apps.search.models import DocumentIndex
+
+    try:
+        version = DocumentVersion.objects.select_related("document").get(pk=version_id)
+    except DocumentVersion.DoesNotExist:
+        return
+
+    doc = version.document
+    if not version.file:
+        Document.objects.filter(pk=doc.pk).update(
+            ocr_status="failed",
+            ocr_error="Nessun file allegato",
+        )
+        return
+
+    path = getattr(version.file, "path", None)
+    if not path or not os.path.isfile(path):
+        Document.objects.filter(pk=doc.pk).update(
+            ocr_status="failed",
+            ocr_error="File non disponibile su disco",
+        )
+        return
+
+    ext = os.path.splitext(path)[1].lower()
+    mime = (version.file_type or "").lower()
+
+    Document.objects.filter(pk=doc.pk).update(ocr_status="processing", ocr_error="")
+
+    text = ""
+    method = ""
+    error_msg = ""
+    ocr_confidence = None
+    ocr_status = "completed"
+
+    try:
+        if ext == ".pdf":
+            if OCRService.has_selectable_text(path):
+                text = OCRService.pdftotext_extract(path)
+                method = "pdftotext"
+                ocr_status = "not_needed" if len(text.strip()) > 20 else "completed"
+            else:
+                ocr_result = OCRService.extract_text_from_file(path)
+                if ocr_result["success"] and (ocr_result.get("text") or "").strip():
+                    text = ocr_result["text"]
+                    method = "ocr"
+                    pages = ocr_result.get("pages") or []
+                    confs = [p.get("confidence") or 0 for p in pages if p.get("confidence")]
+                    ocr_confidence = sum(confs) / len(confs) if confs else None
+                    ocr_status = "completed"
+                else:
+                    ocr_status = "failed"
+                    error_msg = (ocr_result.get("error") or "OCR non ha prodotto testo")[:2000]
+        elif ext in (".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp"):
+            ocr_result = OCRService.extract_text_from_file(path)
+            if ocr_result["success"] and (ocr_result.get("text") or "").strip():
+                text = ocr_result["text"]
+                method = "ocr"
+                p0 = (ocr_result.get("pages") or [{}])[0]
+                ocr_confidence = p0.get("confidence")
+                ocr_status = "completed"
+            else:
+                ocr_status = "failed"
+                error_msg = (ocr_result.get("error") or "OCR non ha prodotto testo")[:2000]
+        else:
+            text = extract_text(path, mime)
+            method = "native"
+            ocr_status = "not_needed"
+    except Exception as e:
+        logger.exception("Text extraction failed for version %s", version_id)
+        ocr_status = "failed"
+        error_msg = str(e)[:2000]
+
+    text_store = (text or "")[:50000]
+    DocumentIndex.objects.update_or_create(
+        document=doc,
+        defaults={
+            "document_version": version,
+            "content": text_store,
+            "extraction_method": method or ("failed" if error_msg else "none"),
+            "error_message": (error_msg or "")[:500],
+            "indexed_at": timezone.now(),
+        },
+    )
+
+    Document.objects.filter(pk=doc.pk).update(
+        extracted_text=text_store,
+        ocr_status=ocr_status,
+        ocr_confidence=ocr_confidence,
+        ocr_error=error_msg[:2000] if error_msg else "",
+    )
 
 
 @shared_task(name="apps.documents.tasks.process_uploaded_file")
@@ -42,6 +147,8 @@ def process_uploaded_file(version_id: str):
     elif mime.startswith("video/"):
         _compress_video(version)
         _generate_video_thumbnail(version)
+
+    process_document_text_extraction.delay(str(version_id))
 
 
 def _compress_image(version):

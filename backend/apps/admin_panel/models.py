@@ -3,6 +3,7 @@ Gestione licenza di sistema (Documento Collaudo).
 Impostazioni di sistema (FASE 17): Email, Organizzazione, Protocollo, Sicurezza, Storage, LDAP, Conservazione.
 """
 from django.db import models
+from django.db.models import Max
 from django.utils import timezone
 
 
@@ -11,6 +12,13 @@ class SystemSettings(models.Model):
     Singleton (pk=1) per configurazioni di sistema.
     Sezioni: email, organization, protocol, security, storage, ldap, conservation.
     """
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="system_settings",
+        null=True,
+        blank=True,
+    )
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     # Sezioni in un unico JSON per flessibilità
     email = models.JSONField(default=dict, blank=True)  # backend_console, smtp_*, test
@@ -21,6 +29,16 @@ class SystemSettings(models.Model):
     ldap = models.JSONField(default=dict, blank=True)  # enabled, server_uri, bind_dn, password, search_base
     conservation = models.JSONField(default=dict, blank=True)  # provider, api_url, api_key
     updated_at = models.DateTimeField(auto_now=True)
+    gdpr_data_retention_days = models.IntegerField(
+        default=3650,
+        help_text="Retention documenti soft-deleted in giorni",
+    )
+    gdpr_audit_retention_days = models.IntegerField(
+        default=1825,
+        help_text="Retention audit log in giorni (default 5 anni)",
+    )
+    gdpr_privacy_policy_version = models.CharField(max_length=20, default="1.0")
+    gdpr_privacy_policy_url = models.URLField(blank=True, default="")
 
     class Meta:
         verbose_name = "Impostazioni di sistema"
@@ -28,6 +46,32 @@ class SystemSettings(models.Model):
 
     @classmethod
     def get_settings(cls):
+        try:
+            from apps.organizations.middleware import get_current_tenant
+        except Exception:
+            get_current_tenant = lambda: None
+
+        tenant = get_current_tenant()
+        if tenant:
+            obj = cls.objects.filter(tenant=tenant).first()
+            if obj:
+                return obj
+            max_id = cls.objects.aggregate(m=Max("id"))["m"] or 0
+            new_id = max(max_id + 1, 2)
+            return cls.objects.create(
+                id=new_id,
+                tenant=tenant,
+                email={},
+                organization={},
+                protocol={},
+                security={},
+                storage={},
+                ldap={},
+                conservation={},
+            )
+        obj = cls.objects.filter(pk=1).first()
+        if obj:
+            return obj
         obj, _ = cls.objects.get_or_create(pk=1, defaults={})
         return obj
 

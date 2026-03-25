@@ -7,8 +7,23 @@ from .models import Notification
 
 class NotificationService:
     @staticmethod
-    def send(recipient, notification_type, title, body, link_url="", metadata=None):
-        return Notification.objects.create(
+    def _tenant_id(recipient=None, document=None):
+        if document and getattr(document, "tenant_id", None):
+            return document.tenant_id
+        if recipient and getattr(recipient, "tenant_id", None):
+            return recipient.tenant_id
+        try:
+            from apps.organizations.middleware import get_current_tenant
+
+            t = get_current_tenant()
+            return t.id if t else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def send(recipient, notification_type, title, body, link_url="", metadata=None, document=None):
+        tid = NotificationService._tenant_id(recipient=recipient, document=document)
+        kw = dict(
             recipient=recipient,
             notification_type=notification_type,
             title=title,
@@ -16,17 +31,21 @@ class NotificationService:
             link_url=link_url or "",
             metadata=metadata or {},
         )
+        if tid:
+            kw["tenant_id"] = tid
+        return Notification.objects.create(**kw)
 
     @staticmethod
-    def send_bulk(recipients, notification_type, title, body, link_url="", metadata=None):
+    def send_bulk(recipients, notification_type, title, body, link_url="", metadata=None, document=None):
         return [
-            Notification.objects.create(
-                recipient=r,
-                notification_type=notification_type,
-                title=title,
-                body=body,
-                link_url=link_url or "",
-                metadata=metadata or {},
+            NotificationService.send(
+                r,
+                notification_type,
+                title,
+                body,
+                link_url=link_url,
+                metadata=metadata,
+                document=document,
             )
             for r in recipients
         ]
@@ -52,6 +71,7 @@ class NotificationService:
                 body,
                 link_url=link_url,
                 metadata=metadata,
+                document=doc,
             )
 
     @staticmethod
@@ -70,6 +90,7 @@ class NotificationService:
             body,
             link_url=link_url,
             metadata={"document_id": str(doc.id), "workflow_instance_id": str(instance.id)},
+            document=doc,
         )
 
     @staticmethod
@@ -88,6 +109,7 @@ class NotificationService:
             body,
             link_url=link_url,
             metadata={"document_id": str(doc.id), "comment": comment},
+            document=doc,
         )
 
     @staticmethod
@@ -107,6 +129,7 @@ class NotificationService:
             body,
             link_url=link_url,
             metadata={"document_id": str(doc.id), "comment": comment},
+            document=doc,
         )
 
     @staticmethod
@@ -125,4 +148,5 @@ class NotificationService:
             body,
             link_url=link_url,
             metadata={"document_id": str(document.id), "shared_by_id": str(shared_by.id)},
+            document=document,
         )

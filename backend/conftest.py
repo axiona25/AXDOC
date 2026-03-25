@@ -3,6 +3,16 @@ from rest_framework.test import APIClient
 from apps.users.models import User
 
 
+@pytest.fixture(autouse=True)
+def default_tenant(db):
+    from apps.organizations.models import Tenant
+
+    Tenant.objects.get_or_create(
+        slug="default",
+        defaults={"name": "Organizzazione Default", "plan": "enterprise"},
+    )
+
+
 @pytest.fixture
 def api_client():
     return APIClient()

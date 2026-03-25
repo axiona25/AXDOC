@@ -60,25 +60,33 @@ export function SettingsPage() {
   if (loading || !data) {
     return (
       <div className="p-6">
-        {loading ? <p className="text-slate-500">Caricamento...</p> : <p className="text-slate-500">Impostazioni non disponibili.</p>}
+        {loading ? (
+          <p className="text-slate-500 dark:text-slate-400">Caricamento...</p>
+        ) : (
+          <p className="text-slate-500 dark:text-slate-400">Impostazioni non disponibili.</p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-4xl rounded-lg bg-white shadow">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <Link to="/dashboard" className="text-sm text-indigo-600 hover:underline">← Dashboard</Link>
-        <h1 className="mt-1 text-xl font-semibold text-slate-800">Impostazioni di sistema</h1>
+    <div className="mx-auto max-w-4xl rounded-lg border border-slate-200 bg-white shadow dark:border-slate-700 dark:bg-slate-800">
+      <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+        <Link to="/dashboard" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
+          ← Dashboard
+        </Link>
+        <h1 className="mt-1 text-xl font-semibold text-slate-800 dark:text-slate-100">Impostazioni di sistema</h1>
       </div>
-      <nav className="flex flex-wrap gap-2 border-b border-slate-200 px-4">
+      <nav className="flex flex-wrap gap-2 border-b border-slate-200 px-4 dark:border-slate-700">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
             className={`border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-800'
+              tab === t.id
+                ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                : 'border-transparent text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
             {t.label}
@@ -87,14 +95,21 @@ export function SettingsPage() {
       </nav>
       <div className="p-4">
         {message && (
-          <p className={`mb-3 text-sm ${message.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{message.text}</p>
+          <p
+            className={`mb-3 text-sm ${
+              message.type === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+            }`}
+          >
+            {message.text}
+          </p>
         )}
 
         {tab === 'email' && (
           <div>
-            <p className="mb-2 text-sm text-slate-600">Backend Console / SMTP. Configura l&apos;invio email.</p>
-            <div className="mb-3 rounded border border-slate-200 p-3 text-sm text-slate-500">
-              Configurazione in <code className="rounded bg-slate-100 px-1">settings</code> (variabili ambiente).
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">Backend Console / SMTP. Configura l&apos;invio email.</p>
+            <div className="mb-3 rounded border border-slate-200 p-3 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+              Configurazione in{' '}
+              <code className="rounded bg-slate-100 px-1 dark:bg-slate-700">settings</code> (variabili ambiente).
             </div>
             <button
               type="button"
@@ -109,30 +124,33 @@ export function SettingsPage() {
 
         {tab === 'organization' && (
           <div>
-            <p className="text-sm text-slate-600">Nome, codice, PEC, logo, formato protocollo.</p>
-            <p className="mt-2 text-sm text-slate-500">Sezione in fase di configurazione.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Nome, codice, PEC, logo, formato protocollo.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sezione in fase di configurazione.</p>
           </div>
         )}
 
         {tab === 'security' && (
           <div>
-            <p className="text-sm text-slate-600">Tentativi login, timeout sessione, MFA per admin.</p>
-            <p className="mt-2 text-sm text-slate-500">Sezione in fase di configurazione.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Tentativi login, timeout sessione, MFA per admin.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sezione in fase di configurazione.</p>
           </div>
         )}
 
         {tab === 'storage' && (
           <div>
-            <p className="text-sm text-slate-600">Dimensione massima upload (MB), estensioni permesse.</p>
-            <p className="mt-2 text-sm text-slate-500">Sezione in fase di configurazione.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Dimensione massima upload (MB), estensioni permesse.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sezione in fase di configurazione.</p>
           </div>
         )}
 
         {tab === 'ldap' && (
           <div>
-            <p className="mb-2 text-sm text-slate-600">Abilita LDAP, server URI, bind DN, password, search base.</p>
-            <div className="mb-3 rounded border border-slate-200 p-3 text-sm text-slate-500">
-              Configurazione in <code className="rounded bg-slate-100 px-1">settings</code> o tramite impostazioni salvate.
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">
+              Abilita LDAP, server URI, bind DN, password, search base.
+            </p>
+            <div className="mb-3 rounded border border-slate-200 p-3 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+              Configurazione in{' '}
+              <code className="rounded bg-slate-100 px-1 dark:bg-slate-700">settings</code> o tramite impostazioni salvate.
             </div>
             <button
               type="button"
@@ -147,8 +165,8 @@ export function SettingsPage() {
 
         {tab === 'conservation' && (
           <div>
-            <p className="text-sm text-slate-600">Provider (Mock / Aruba / Custom), API URL, API Key.</p>
-            <p className="mt-2 text-sm text-slate-500">Sezione in fase di configurazione.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Provider (Mock / Aruba / Custom), API URL, API Key.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sezione in fase di configurazione.</p>
           </div>
         )}
       </div>

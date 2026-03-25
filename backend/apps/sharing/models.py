@@ -30,6 +30,13 @@ def _default_token():
 class ShareLink(models.Model):
     """Link di condivisione per documento o protocollo (interno o esterno)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="share_links",
+        null=True,
+        blank=True,
+    )
     token = models.CharField(max_length=64, unique=True, default=_default_token, db_index=True)
     target_type = models.CharField(max_length=20, choices=SHARE_TARGET_TYPE)
     document = models.ForeignKey(

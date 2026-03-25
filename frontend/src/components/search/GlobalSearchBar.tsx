@@ -48,27 +48,27 @@ export function GlobalSearchBar() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => query.trim() && results.length > 0 && setOpen(true)}
-        className="w-64 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder-slate-500"
+        className="w-64 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-400"
         aria-label="Ricerca globale"
       />
       {loading && (
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden>...</span>
       )}
       {open && results.length > 0 && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-80 w-80 overflow-auto rounded border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-80 w-80 overflow-auto rounded border border-slate-200 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
           <ul className="py-1">
             {results.map((r) => (
               <li key={r.id}>
                 <Link
                   to={`/documents?open=${r.id}`}
                   onClick={() => setOpen(false)}
-                  className="block px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                  className="block px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
                 >
                   <span className="font-medium">{r.title}</span>
                   {r.folder_name && (
-                    <span className="ml-2 text-slate-500">— {r.folder_name}</span>
+                    <span className="ml-2 text-slate-500 dark:text-slate-400">— {r.folder_name}</span>
                   )}
-                  <span className="ml-2 text-slate-400">
+                  <span className="ml-2 text-slate-400 dark:text-slate-500">
                     {new Date(r.updated_at).toLocaleDateString('it-IT')}
                   </span>
                 </Link>
@@ -78,7 +78,7 @@ export function GlobalSearchBar() {
           <Link
             to={`/search?q=${encodeURIComponent(query)}`}
             onClick={() => setOpen(false)}
-            className="block border-t border-slate-100 px-3 py-2 text-center text-sm text-indigo-600 hover:bg-slate-50"
+            className="block border-t border-slate-100 px-3 py-2 text-center text-sm text-indigo-600 hover:bg-slate-50 dark:border-slate-600 dark:text-indigo-400 dark:hover:bg-slate-700"
           >
             Vedi tutti
           </Link>

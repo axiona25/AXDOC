@@ -17,6 +17,13 @@ ROOM_TYPE = [
 
 class ChatRoom(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="chat_rooms",
+        null=True,
+        blank=True,
+    )
     room_type = models.CharField(max_length=20, choices=ROOM_TYPE)
     name = models.CharField(max_length=255, blank=True)
     document = models.ForeignKey(
@@ -56,6 +63,15 @@ class ChatRoom(models.Model):
     def __str__(self):
         return self.name or f"Chat {self.room_type} {self.id}"
 
+    @staticmethod
+    def _ctx_tenant():
+        try:
+            from apps.organizations.middleware import get_current_tenant
+
+            return get_current_tenant()
+        except Exception:
+            return None
+
     @classmethod
     def get_or_create_direct(cls, user1, user2):
         u1, u2 = user1.id, user2.id
@@ -67,7 +83,8 @@ class ChatRoom(models.Model):
             user_ids = set(room.memberships.values_list("user_id", flat=True))
             if user_ids == {u1, u2}:
                 return room
-        room = cls.objects.create(room_type="direct", is_active=True)
+        t = cls._ctx_tenant()
+        room = cls.objects.create(room_type="direct", is_active=True, tenant=t)
         ChatMembership.objects.create(room=room, user_id=u1)
         ChatMembership.objects.create(room=room, user_id=u2)
         return room
@@ -77,7 +94,12 @@ class ChatRoom(models.Model):
         room = cls.objects.filter(document=document, is_active=True).first()
         if room:
             return room
-        room = cls.objects.create(room_type="document", document=document, name=f"Chat: {document.title[:100]}")
+        room = cls.objects.create(
+            room_type="document",
+            document=document,
+            name=f"Chat: {document.title[:100]}",
+            tenant=getattr(document, "tenant", None),
+        )
         if document.created_by_id:
             ChatMembership.objects.get_or_create(room=room, user=document.created_by, defaults={"is_admin": True})
         return room
@@ -87,7 +109,12 @@ class ChatRoom(models.Model):
         room = cls.objects.filter(dossier=dossier, is_active=True).first()
         if room:
             return room
-        room = cls.objects.create(room_type="dossier", dossier=dossier, name=f"Chat: {dossier.title[:100]}")
+        room = cls.objects.create(
+            room_type="dossier",
+            dossier=dossier,
+            name=f"Chat: {dossier.title[:100]}",
+            tenant=getattr(dossier, "tenant", None),
+        )
         if dossier.responsible_id:
             ChatMembership.objects.get_or_create(room=room, user=dossier.responsible, defaults={"is_admin": True})
         return room

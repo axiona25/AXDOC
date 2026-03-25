@@ -15,11 +15,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.users.guest_permissions import IsInternalUser
+from apps.organizations.mixins import TenantFilterMixin
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Protocol, ProtocolCounter
 from .serializers import ProtocolListSerializer, ProtocolDetailSerializer, ProtocolCreateSerializer
 from apps.documents.models import Document
 from .agid_converter import AGIDConverter, ConversionError
 from apps.organizations.models import OrganizationalUnit
+from apps.dashboard.export_service import ExportService
 
 
 def _pdf_response(data: bytes, filename: str) -> HttpResponse:
@@ -42,16 +45,83 @@ def _user_ou_ids(user):
     )
 
 
-class ProtocolViewSet(viewsets.ModelViewSet):
+def _normalize_protocol_direction_param(direction: str | None) -> str | None:
+    if not direction:
+        return None
+    d = direction.strip().upper()
+    if d == "IN":
+        return "in"
+    if d == "OUT":
+        return "out"
+    low = direction.strip().lower()
+    if low in ("in", "out"):
+        return low
+    return None
+
+
+def _protocol_export_queryset(view, request):
+    """Stessi filtri della list + date_from/date_to per export."""
+    qs = view.get_queryset()
+    filter_param = request.query_params.get("filter", "").lower()
+    if filter_param == "mine":
+        ou_ids = _user_ou_ids(request.user)
+        qs = qs.filter(organizational_unit_id__in=ou_ids) if ou_ids else qs.none()
+
+    direction = _normalize_protocol_direction_param(request.query_params.get("direction"))
+    if direction:
+        qs = qs.filter(direction=direction)
+    ou_id = request.query_params.get("ou_id")
+    if ou_id:
+        qs = qs.filter(organizational_unit_id=ou_id)
+    year = request.query_params.get("year")
+    if year:
+        try:
+            qs = qs.filter(year=int(year))
+        except ValueError:
+            pass
+    status_filter = request.query_params.get("status")
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    search = (request.query_params.get("search") or "").strip()
+    if search:
+        from django.db.models import Q
+
+        qs = qs.filter(
+            Q(subject__icontains=search)
+            | Q(sender_receiver__icontains=search)
+            | Q(protocol_id__icontains=search)
+        )
+
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+
+    return qs.order_by("-registered_at", "-created_at")
+
+
+@extend_schema_view(
+    list=extend_schema(tags=["Protocolli"], summary="Lista protocolli"),
+    create=extend_schema(tags=["Protocolli"], summary="Crea protocollo"),
+    retrieve=extend_schema(tags=["Protocolli"], summary="Dettaglio protocollo"),
+    update=extend_schema(tags=["Protocolli"], summary="Aggiorna protocollo"),
+    partial_update=extend_schema(tags=["Protocolli"], summary="Aggiorna parziale protocollo"),
+    destroy=extend_schema(tags=["Protocolli"], summary="Elimina protocollo"),
+)
+class ProtocolViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     """
     Protocolli: list (filtri direction, ou, year, status, search), retrieve, create, update.
     destroy → 400 (non si eliminano). Azioni: archive, download, add_attachment.
     Solo utenti interni (FASE 17).
     """
     permission_classes = [IsAuthenticated, IsInternalUser]
+    queryset = Protocol.objects.all()
 
     def get_queryset(self):
-        qs = Protocol.objects.all().select_related(
+        qs = super().get_queryset().select_related(
             "organizational_unit", "document", "registered_by", "created_by"
         )
         if getattr(self.request.user, "role", None) == "ADMIN":
@@ -77,8 +147,8 @@ class ProtocolViewSet(viewsets.ModelViewSet):
             ou_ids = _user_ou_ids(request.user)
             qs = qs.filter(organizational_unit_id__in=ou_ids) if ou_ids else qs.none()
 
-        direction = request.query_params.get("direction")
-        if direction and direction in ("in", "out"):
+        direction = _normalize_protocol_direction_param(request.query_params.get("direction"))
+        if direction:
             qs = qs.filter(direction=direction)
         ou_id = request.query_params.get("ou_id")
         if ou_id:
@@ -101,6 +171,13 @@ class ProtocolViewSet(viewsets.ModelViewSet):
                 | Q(sender_receiver__icontains=search)
                 | Q(protocol_id__icontains=search)
             )
+
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
 
         qs = qs.order_by("-registered_at", "-created_at")
         page = self.paginate_queryset(qs)
@@ -250,6 +327,74 @@ class ProtocolViewSet(viewsets.ModelViewSet):
         return Response(
             {"detail": "I protocolli non si eliminano; usare archivia."},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @action(detail=False, methods=["get"], url_path="export_excel")
+    def export_excel(self, request):
+        """
+        GET .../export_excel/?date_from=&date_to=&direction=in|out|IN|OUT&ou_id=
+        """
+        qs = _protocol_export_queryset(self, request).select_related("organizational_unit")[:5000]
+        headers = [
+            "N. Protocollo",
+            "Data",
+            "Direzione",
+            "Oggetto",
+            "Mittente/Destinatario",
+            "UO",
+            "Stato",
+        ]
+        rows = []
+        for p in qs:
+            rows.append(
+                [
+                    p.protocol_id or (str(p.number) if p.number is not None else str(p.id)[:8]),
+                    p.created_at.strftime("%d/%m/%Y %H:%M") if p.created_at else "",
+                    p.get_direction_display(),
+                    p.subject or "",
+                    p.sender_receiver or "",
+                    p.organizational_unit.name if p.organizational_unit_id else "",
+                    p.get_status_display(),
+                ]
+            )
+        return ExportService.generate_excel(
+            title="Report Protocolli",
+            headers=headers,
+            rows=rows,
+            column_widths=[18, 18, 14, 40, 28, 22, 12],
+        )
+
+    @action(detail=False, methods=["get"], url_path="export_pdf")
+    def export_pdf(self, request):
+        qs = _protocol_export_queryset(self, request).select_related("organizational_unit")[:5000]
+        headers = [
+            "N. Protocollo",
+            "Data",
+            "Dir.",
+            "Oggetto",
+            "Mittente/Dest.",
+            "UO",
+            "Stato",
+        ]
+        rows = []
+        for p in qs:
+            rows.append(
+                [
+                    p.protocol_id or (str(p.number) if p.number is not None else ""),
+                    p.created_at.strftime("%d/%m/%Y %H:%M") if p.created_at else "",
+                    p.get_direction_display()[:12],
+                    (p.subject or "")[:80],
+                    (p.sender_receiver or "")[:40],
+                    (p.organizational_unit.name if p.organizational_unit_id else "")[:20],
+                    p.get_status_display(),
+                ]
+            )
+        return ExportService.generate_pdf(
+            title="Report Protocolli",
+            headers=headers,
+            rows=rows,
+            orientation="landscape",
+            column_widths=[28, 22, 14, 55, 35, 22, 18],
         )
 
     @action(detail=True, methods=["post"], url_path="archive")

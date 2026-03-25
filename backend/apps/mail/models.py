@@ -10,6 +10,14 @@ from django.db import models
 class MailAccount(models.Model):
     """Account di posta configurato (IMAP + SMTP)."""
 
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="mail_accounts",
+        null=True,
+        blank=True,
+    )
+
     ACCOUNT_TYPE_CHOICES = [
         ("email", "Email"),
         ("pec", "PEC"),

@@ -32,6 +32,8 @@ services:
       - ./backend:/app
       - backup_data:/backups
     env_file: .env
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-dev-only-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy
@@ -56,6 +58,8 @@ services:
     volumes:
       - ./backend:/app
     env_file: .env
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-dev-only-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +72,8 @@ services:
     volumes:
       - ./backend:/app
     env_file: .env
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-dev-only-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy

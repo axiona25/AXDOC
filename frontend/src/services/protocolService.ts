@@ -36,13 +36,15 @@ export interface ProtocolDetailItem extends ProtocolItem {
 }
 
 export interface ProtocolsParams {
-  direction?: 'in' | 'out'
+  direction?: 'in' | 'out' | string
   ou_id?: string
   year?: number
   status?: string
   search?: string
   filter?: 'mine' | 'all'
   page?: number
+  date_from?: string
+  date_to?: string
 }
 
 export interface ProtocolsResponse {

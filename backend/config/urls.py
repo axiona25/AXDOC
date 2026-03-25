@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from rest_framework.permissions import AllowAny
 
 from apps.authentication.views import sso_jwt_redirect_view, LDAPStatusView, LDAPSyncView
 from apps.admin_panel.views import (
@@ -16,6 +18,25 @@ from apps.admin_panel.views import (
 from apps.admin_panel.health_views import HealthCheckView
 
 urlpatterns = [
+    path(
+        "api/schema/",
+        SpectacularAPIView.as_view(authentication_classes=[], permission_classes=[AllowAny]),
+        name="schema",
+    ),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(
+            authentication_classes=[], permission_classes=[AllowAny], url_name="schema"
+        ),
+        name="swagger-ui",
+    ),
+    path(
+        "api/redoc/",
+        SpectacularRedocView.as_view(
+            authentication_classes=[], permission_classes=[AllowAny], url_name="schema"
+        ),
+        name="redoc",
+    ),
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.authentication.urls")),
     path("api/auth/sso/jwt-redirect/", sso_jwt_redirect_view),
@@ -33,6 +54,7 @@ urlpatterns = [
     path("api/", include("apps.users.urls")),
     path("api/groups/", include("apps.users.groups_urls")),
     path("api/documents/", include("apps.documents.urls")),
+    path("api/document-templates/", include("apps.documents.template_urls")),
     path("api/folders/", include("apps.documents.folders_urls")),
     path("api/metadata/", include("apps.metadata.urls")),
     path("api/protocols/", include("apps.protocols.urls")),
@@ -43,9 +65,11 @@ urlpatterns = [
     path("api/notifications/", include("apps.notifications.urls")),
     path("api/search/", include("apps.search.urls")),
     path("api/audit/", include("apps.audit.urls")),
+    path("api/", include("apps.audit.security_urls")),
     path("api/chat/", include("apps.chat.urls")),
     path("api/dashboard/", include("apps.dashboard.urls")),
     path("api/public/share/", include("apps.sharing.public_urls")),
+    path("api/tenants/", include("apps.organizations.tenant_urls")),
     path("api/organizations/", include("apps.organizations.urls")),
     path("api/archive/", include("apps.archive.urls")),
     path("api/mail/", include("apps.mail.urls")),

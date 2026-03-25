@@ -91,6 +91,8 @@ export interface DossiersParams {
   filter?: 'mine' | 'all'
   status?: string
   page?: number
+  responsible_id?: string
+  ou_id?: string
 }
 
 export interface DossiersResponse {

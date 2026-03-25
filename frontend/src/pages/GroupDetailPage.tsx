@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getGroup, type UserGroupMember } from '../services/groupService'
+import { useBreadcrumbTitle } from '../components/layout/BreadcrumbContext'
 
 export function GroupDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { setEntityTitle } = useBreadcrumbTitle()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -29,6 +31,12 @@ export function GroupDetailPage() {
       .catch(() => setError('Impossibile caricare il gruppo.'))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (name) setEntityTitle(name)
+    else setEntityTitle(null)
+    return () => setEntityTitle(null)
+  }, [name, setEntityTitle])
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">

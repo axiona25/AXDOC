@@ -2,7 +2,7 @@
 Serializers per cartelle e documenti (FASE 05).
 """
 from rest_framework import serializers
-from .models import Folder, Document, DocumentVersion, DocumentAttachment
+from .models import Folder, Document, DocumentVersion, DocumentAttachment, DocumentTemplate
 from apps.metadata.models import MetadataStructure
 
 
@@ -99,6 +99,7 @@ class DocumentListSerializer(serializers.ModelSerializer):
             "created_by", "created_by_email", "created_at", "updated_at",
             "locked_by", "locked_at", "visibility", "owner",
             "thumbnail",
+            "ocr_status", "ocr_confidence",
         ]
         read_only_fields = fields
 
@@ -129,6 +130,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     can_read = serializers.SerializerMethodField()
     can_write = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
+    extracted_text_preview = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -138,8 +140,15 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             "locked_by", "locked_at", "is_protocolled", "visibility", "owner",
             "versions", "attachments",
             "can_read", "can_write", "can_delete",
+            "ocr_status", "ocr_confidence", "ocr_error", "extracted_text_preview",
         ]
         read_only_fields = fields
+
+    def get_extracted_text_preview(self, obj):
+        t = (obj.extracted_text or "").strip()
+        if len(t) <= 4000:
+            return t
+        return t[:4000] + "…"
 
     def get_folder_id(self, obj):
         return str(obj.folder_id) if obj.folder_id else None
@@ -193,3 +202,39 @@ class DocumentCreateSerializer(serializers.ModelSerializer):
         fields = [
             "title", "description", "folder_id", "metadata_structure_id", "metadata_values",
         ]
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    default_folder_name = serializers.CharField(source="default_folder.name", read_only=True, allow_null=True)
+    default_metadata_structure_name = serializers.CharField(
+        source="default_metadata_structure.name", read_only=True, allow_null=True
+    )
+    default_workflow_template_name = serializers.CharField(
+        source="default_workflow_template.name", read_only=True, allow_null=True
+    )
+    created_by_email = serializers.CharField(source="created_by.email", read_only=True, allow_null=True)
+
+    class Meta:
+        model = DocumentTemplate
+        fields = [
+            "id",
+            "name",
+            "description",
+            "default_status",
+            "default_folder",
+            "default_folder_name",
+            "default_metadata_structure",
+            "default_metadata_structure_name",
+            "default_workflow_template",
+            "default_workflow_template_name",
+            "default_metadata_values",
+            "auto_start_workflow",
+            "is_active",
+            "allowed_file_types",
+            "max_file_size_mb",
+            "created_by",
+            "created_by_email",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]

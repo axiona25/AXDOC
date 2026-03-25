@@ -2,7 +2,7 @@
 API Archivio e conservazione AGID (FASE 21).
 """
 import io
-from django.db.models import Q
+from django.db.models import Q, Count, Prefetch
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
@@ -15,6 +15,7 @@ from .models import DocumentArchive, RetentionRule, InformationPackage, PackageD
 from .serializers import DocumentArchiveSerializer, RetentionRuleSerializer, InformationPackageSerializer
 from .packager import AgidPackager
 from .classification import TITOLARIO_DEFAULT
+from apps.organizations.mixins import TenantFilterMixin
 
 
 def _is_admin_or_approver(user):
@@ -107,14 +108,37 @@ class DocumentArchiveViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(DocumentArchiveSerializer(rec).data)
 
 
-class InformationPackageViewSet(viewsets.ReadOnlyModelViewSet):
+class InformationPackageViewSet(TenantFilterMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = InformationPackageSerializer
     permission_classes = [IsAuthenticated]
+    queryset = InformationPackage.objects.all()
 
     def get_queryset(self):
-        return InformationPackage.objects.select_related("created_by").prefetch_related(
-            "documents", "protocols", "dossiers"
-        ).order_by("-created_at")
+        return (
+            super()
+            .get_queryset()
+            .select_related("created_by", "tenant")
+            .prefetch_related(
+                Prefetch(
+                    "package_documents",
+                    queryset=PackageDocument.objects.select_related("document"),
+                ),
+                Prefetch(
+                    "package_protocol_links",
+                    queryset=PackageProtocolLink.objects.select_related("protocol"),
+                ),
+                Prefetch(
+                    "package_dossier_links",
+                    queryset=PackageDossierLink.objects.select_related("dossier"),
+                ),
+            )
+            .annotate(
+                doc_link_count=Count("documents", distinct=True),
+                proto_link_count=Count("protocols", distinct=True),
+                dossier_link_count=Count("dossiers", distinct=True),
+            )
+            .order_by("-created_at")
+        )
 
     @action(detail=False, methods=["post"], url_path="create_pdv")
     def create_pdv(self, request):

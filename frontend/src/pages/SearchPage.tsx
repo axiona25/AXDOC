@@ -43,21 +43,21 @@ export function SearchPage() {
   }, [params.q, params.type, params.status, params.order_by, params.page])
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6">
+    <div className="min-h-screen bg-slate-100 p-6 dark:bg-slate-900">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-4 text-2xl font-semibold text-slate-800">Ricerca</h1>
+        <h1 className="mb-4 text-2xl font-semibold text-slate-800 dark:text-slate-100">Ricerca</h1>
         <div className="mb-4 flex flex-wrap gap-3">
           <input
             type="search"
             placeholder="Cerca documenti..."
             value={params.q}
             onChange={(e) => setParams((p) => ({ ...p, q: e.target.value, page: 1 }))}
-            className="min-w-[240px] flex-1 rounded border border-slate-300 px-3 py-2 text-slate-800"
+            className="min-w-[240px] flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <select
             value={params.order_by}
             onChange={(e) => setParams((p) => ({ ...p, order_by: e.target.value as 'relevance' | 'title' | '-updated_at' | 'updated_at' }))}
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           >
             <option value="relevance">Pertinenza</option>
             <option value="title">Titolo</option>
@@ -77,10 +77,10 @@ export function SearchPage() {
             </select>
           )}
         </div>
-        {loading && <p className="text-slate-500">Caricamento...</p>}
+        {loading && <p className="text-slate-500 dark:text-slate-400">Caricamento...</p>}
         {data && !loading && (
           <>
-            <p className="mb-2 text-sm text-slate-600">{data.total_count} risultati</p>
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">{data.total_count} risultati</p>
             <ul className="space-y-3">
               {data.results.map((r) => (
                 <SearchResultCard key={r.id} item={r} />
@@ -92,7 +92,7 @@ export function SearchPage() {
                   type="button"
                   disabled={params.page <= 1}
                   onClick={() => setParams((p) => ({ ...p, page: p.page - 1 }))}
-                  className="rounded bg-slate-200 px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="rounded bg-slate-200 px-3 py-1.5 text-sm disabled:opacity-50 dark:bg-slate-700 dark:text-slate-100"
                 >
                   Precedente
                 </button>
@@ -100,7 +100,7 @@ export function SearchPage() {
                   type="button"
                   disabled={params.page * params.page_size >= data.total_count}
                   onClick={() => setParams((p) => ({ ...p, page: p.page + 1 }))}
-                  className="rounded bg-slate-200 px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="rounded bg-slate-200 px-3 py-1.5 text-sm disabled:opacity-50 dark:bg-slate-700 dark:text-slate-100"
                 >
                   Successiva
                 </button>
@@ -115,14 +115,17 @@ export function SearchPage() {
 
 function SearchResultCard({ item }: { item: SearchResultItem }) {
   return (
-    <li className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+    <li className="rounded border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <Link to={`/documents?open=${item.id}`} className="block">
-        <h3 className="font-semibold text-indigo-600">{item.title}</h3>
+        <h3 className="font-semibold text-indigo-600 dark:text-indigo-400">{item.title}</h3>
         {item.snippet && (
-          <p className="mt-1 text-sm text-slate-600" dangerouslySetInnerHTML={{ __html: item.snippet }} />
+          <p
+            className="mt-1 text-sm text-slate-600 dark:text-slate-300"
+            dangerouslySetInnerHTML={{ __html: item.snippet }}
+          />
         )}
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-          <span className="rounded bg-slate-100 px-1.5 py-0.5">{item.status}</span>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 dark:bg-slate-700">{item.status}</span>
           {item.folder_name && <span>{item.folder_name}</span>}
           <span>{new Date(item.updated_at).toLocaleDateString('it-IT')}</span>
         </div>

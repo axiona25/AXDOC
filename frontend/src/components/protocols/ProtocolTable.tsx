@@ -1,3 +1,4 @@
+import { FileSpreadsheet, FileText } from 'lucide-react'
 import type { ProtocolItem } from '../../services/protocolService'
 import type { SignatureBadgeStatus } from '../../pages/ProtocolsPage'
 
@@ -13,6 +14,8 @@ interface ProtocolTableProps {
   onArchive: (p: ProtocolItem) => void
   onAddToDossier?: (p: ProtocolItem) => void
   onShare?: (p: ProtocolItem) => void
+  onExportExcel?: () => void
+  onExportPdf?: () => void
 }
 
 const SIGNATURE_BADGE: Record<string, { label: string; className: string }> = {
@@ -34,6 +37,8 @@ export function ProtocolTable({
   onArchive,
   onAddToDossier,
   onShare,
+  onExportExcel,
+  onExportPdf,
 }: ProtocolTableProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -56,6 +61,30 @@ export function ProtocolTable({
           className="min-w-[200px] rounded border border-slate-300 px-3 py-1.5 text-sm"
           aria-label="Ricerca"
         />
+        {(onExportExcel || onExportPdf) && (
+          <div className="ml-auto flex flex-wrap gap-2">
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={onExportExcel}
+                className="flex items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                <FileSpreadsheet className="h-4 w-4" aria-hidden />
+                Esporta Excel
+              </button>
+            )}
+            {onExportPdf && (
+              <button
+                type="button"
+                onClick={onExportPdf}
+                className="flex items-center gap-1.5 rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                <FileText className="h-4 w-4" aria-hidden />
+                Esporta PDF
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="overflow-auto rounded border border-slate-200">
         <table className="w-full min-w-[800px] border-collapse text-sm">

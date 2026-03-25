@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { FileSpreadsheet, FileText } from 'lucide-react'
 import type { DossierItem } from '../../services/dossierService'
 import type { SignatureBadgeStatus } from '../../pages/DossiersPage'
 
@@ -11,6 +12,8 @@ interface DossierListProps {
   onEdit?: (d: DossierItem) => void
   onArchive?: (d: DossierItem) => void
   onDelete?: (d: DossierItem) => void
+  onExportExcel?: () => void
+  onExportPdf?: () => void
 }
 
 const SIG_BADGE: Record<string, { label: string; className: string }> = {
@@ -29,10 +32,12 @@ export function DossierList({
   onEdit,
   onArchive,
   onDelete,
+  onExportExcel,
+  onExportPdf,
 }: DossierListProps) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200">
         <button
           type="button"
           onClick={() => onTabChange('mine')}
@@ -60,6 +65,30 @@ export function DossierList({
         >
           Archiviati
         </button>
+        {(onExportExcel || onExportPdf) && (
+          <div className="ml-auto flex flex-wrap gap-2 pb-2">
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={onExportExcel}
+                className="flex items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                <FileSpreadsheet className="h-4 w-4" aria-hidden />
+                Esporta Excel
+              </button>
+            )}
+            {onExportPdf && (
+              <button
+                type="button"
+                onClick={onExportPdf}
+                className="flex items-center gap-1.5 rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                <FileText className="h-4 w-4" aria-hidden />
+                Esporta PDF
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {dossiers.map((d) => (

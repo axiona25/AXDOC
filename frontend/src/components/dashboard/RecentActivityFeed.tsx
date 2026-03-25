@@ -40,22 +40,25 @@ function formatRelative(dateStr: string): string {
 
 export function RecentActivityFeed({ items }: RecentActivityFeedProps) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">Attività recente</h3>
-        <Link to="/audit" className="text-xs text-indigo-600 hover:underline">
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Attività recente</h3>
+        <Link to="/audit" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
           Vedi tutto
         </Link>
       </div>
       <ul className="mt-3 space-y-2">
         {items.length === 0 ? (
-          <li className="text-sm text-slate-500">Nessuna attività</li>
+          <li className="text-sm text-slate-500 dark:text-slate-400">Nessuna attività</li>
         ) : (
           items.map((a) => (
-            <li key={a.id} className="flex items-start gap-2 rounded-lg bg-slate-50 px-2 py-1.5 text-sm">
-              <span className="font-medium text-slate-700">{a.user_email || 'Sistema'}</span>
-              <span className="text-slate-600">{ACTION_LABELS[a.action] || a.action}</span>
-              <span className="ml-auto text-xs text-slate-400">{formatRelative(a.timestamp)}</span>
+            <li
+              key={a.id}
+              className="flex items-start gap-2 rounded-lg bg-slate-50 px-2 py-1.5 text-sm dark:bg-slate-700/50"
+            >
+              <span className="font-medium text-slate-700 dark:text-slate-200">{a.user_email || 'Sistema'}</span>
+              <span className="text-slate-600 dark:text-slate-300">{ACTION_LABELS[a.action] || a.action}</span>
+              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{formatRelative(a.timestamp)}</span>
             </li>
           ))
         )}

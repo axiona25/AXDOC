@@ -78,6 +78,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="created_users",
     )
     updated_at = models.DateTimeField(auto_now=True)
+    privacy_accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Ultima accettazione informativa privacy (GDPR).",
+    )
+    data_retention_days = models.IntegerField(
+        default=3650,
+        help_text="Giorni di conservazione dati personali (default 10 anni PA).",
+    )
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="users",
+        null=True,
+        blank=True,
+    )
 
     objects = UserManager()
     USERNAME_FIELD = "email"
@@ -118,6 +134,13 @@ class UserGroup(models.Model):
     Usabile per permessi su documenti, notifiche, reportistica.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="user_groups",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
     organizational_unit = models.ForeignKey(
@@ -176,3 +199,42 @@ class UserGroupMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.email} in {self.group.name}"
+
+
+CONSENT_TYPE_CHOICES = [
+    ("privacy_policy", "Informativa Privacy"),
+    ("data_processing", "Trattamento Dati"),
+    ("marketing", "Comunicazioni Marketing"),
+    ("analytics", "Analisi e Statistiche"),
+    ("third_party", "Condivisione Terze Parti"),
+]
+
+
+class ConsentRecord(models.Model):
+    """Registro consensi GDPR per utente."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="consents",
+    )
+    consent_type = models.CharField(max_length=50, choices=CONSENT_TYPE_CHOICES)
+    version = models.CharField(
+        max_length=20,
+        help_text="Versione del documento accettato, es. '1.0'",
+    )
+    granted = models.BooleanField(help_text="True = consenso dato, False = revocato")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "consent_type"]),
+        ]
+
+    def __str__(self):
+        action = "granted" if self.granted else "revoked"
+        return f"{self.user.email} {action} {self.consent_type} v{self.version}"

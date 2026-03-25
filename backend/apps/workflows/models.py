@@ -43,6 +43,13 @@ def _user_model():
 class WorkflowTemplate(models.Model):
     """Template di workflow multi-step (RF-048, RF-050)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="workflow_templates",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     is_published = models.BooleanField(default=False)
@@ -144,6 +151,13 @@ class WorkflowStep(models.Model):
 class WorkflowInstance(models.Model):
     """Istanza di workflow avviata su un documento (RF-053..RF-056)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="workflow_instances",
+        null=True,
+        blank=True,
+    )
     template = models.ForeignKey(
         WorkflowTemplate,
         on_delete=models.PROTECT,

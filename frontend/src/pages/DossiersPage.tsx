@@ -1,18 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DossierList } from '../components/dossiers/DossierList'
 import { DossierFormModal } from '../components/dossiers/DossierFormModal'
 import { DossierCreateWizard } from '../components/dossiers/DossierCreateWizard'
+import { FilterPanel, type FilterField } from '../components/common/FilterPanel'
 import type { DossierItem, DossierDetailItem, CreateDossierPayload } from '../services/dossierService'
 import { getDossiers, updateDossier, archiveDossier, deleteDossier } from '../services/dossierService'
+import { exportDossiersExcel, exportDossiersPdf } from '../services/exportService'
 import { getDossier } from '../services/dossierService'
 import { getSignaturesByTarget } from '../services/signatureService'
 import { getUsers } from '../services/userService'
+import { getOrganizationalUnits } from '../services/organizationService'
 
 export type SignatureBadgeStatus = 'pending' | 'completed' | 'rejected' | null
 
 export function DossiersPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [dossiers, setDossiers] = useState<DossierItem[]>([])
   const [signatureStatusMap, setSignatureStatusMap] = useState<Record<string, SignatureBadgeStatus>>({})
   const [activeTab, setActiveTab] = useState<'mine' | 'all' | 'archived'>('mine')
@@ -20,12 +24,43 @@ export function DossiersPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingDossier, setEditingDossier] = useState<DossierDetailItem | null>(null)
   const [users, setUsers] = useState<{ id: string; email: string; first_name?: string; last_name?: string }[]>([])
+  const [ouOptions, setOuOptions] = useState<{ value: string; label: string }[]>([])
+
+  const responsibleIdQ = searchParams.get('responsible_id') ?? ''
+  const ouIdQ = searchParams.get('ou_id') ?? ''
+
+  const userOptions = useMemo(
+    () =>
+      users.map((u) => ({
+        value: u.id,
+        label: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.email,
+      })),
+    [users],
+  )
+
+  const filterFields = useMemo<FilterField[]>(
+    () => [
+      { name: 'responsible_id', label: 'Responsabile', type: 'select', options: userOptions },
+      { name: 'ou_id', label: 'Unità organizzativa', type: 'select', options: ouOptions },
+    ],
+    [userOptions, ouOptions],
+  )
+
+  useEffect(() => {
+    getOrganizationalUnits({ page: 1 })
+      .then((r) =>
+        setOuOptions((r.results ?? []).map((o) => ({ value: o.id, label: `${o.name} (${o.code})` }))),
+      )
+      .catch(() => setOuOptions([]))
+  }, [])
 
   const load = useCallback(() => {
     setLoading(true)
-    const params: { filter?: 'mine' | 'all'; status?: string } = {}
+    const params: { filter?: 'mine' | 'all'; status?: string; responsible_id?: string; ou_id?: string } = {}
     if (activeTab === 'all') params.filter = 'all'
     else if (activeTab === 'archived') params.status = 'archived'
+    if (responsibleIdQ) params.responsible_id = responsibleIdQ
+    if (ouIdQ) params.ou_id = ouIdQ
     getDossiers(params)
       .then((res) => {
         setDossiers(res.results || [])
@@ -46,7 +81,7 @@ export function DossiersPage() {
       })
       .catch(() => setDossiers([]))
       .finally(() => setLoading(false))
-  }, [activeTab])
+  }, [activeTab, responsibleIdQ, ouIdQ])
 
   useEffect(() => {
     load()
@@ -83,21 +118,36 @@ export function DossiersPage() {
     getDossier(d.id).then(setEditingDossier).catch(() => setEditingDossier(null))
   }
 
+  const dossierExportParams = (): Record<string, string | undefined> => {
+    const p: Record<string, string | undefined> = {}
+    if (activeTab === 'all') p.filter = 'all'
+    if (activeTab === 'archived') p.status = 'archived'
+    if (responsibleIdQ) p.responsible_id = responsibleIdQ
+    if (ouIdQ) p.ou_id = ouIdQ
+    return p
+  }
+
   return (
-    <div className="flex flex-col rounded-lg bg-white shadow">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-        <h1 className="text-xl font-semibold text-slate-800">Fascicoli</h1>
+    <div className="flex flex-col rounded-lg border border-slate-200 bg-white shadow dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-700">
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Fascicoli</h1>
         <button
           type="button"
-          onClick={() => { setFormOpen(true); setEditingDossier(null); }}
+          onClick={() => {
+            setFormOpen(true)
+            setEditingDossier(null)
+          }}
           className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
           Nuovo fascicolo
         </button>
       </div>
+      <div className="border-b border-slate-100 px-4 py-2 dark:border-slate-700">
+        <FilterPanel fields={filterFields} onApply={() => load()} onReset={() => load()} />
+      </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {loading ? (
-          <p className="text-slate-500">Caricamento...</p>
+          <p className="text-slate-500 dark:text-slate-400">Caricamento...</p>
         ) : (
           <DossierList
             dossiers={dossiers}
@@ -108,6 +158,8 @@ export function DossiersPage() {
             onEdit={openEdit}
             onArchive={handleArchive}
             onDelete={handleDelete}
+            onExportExcel={() => exportDossiersExcel(dossierExportParams())}
+            onExportPdf={() => exportDossiersPdf(dossierExportParams())}
           />
         )}
       </div>

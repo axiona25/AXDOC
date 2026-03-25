@@ -21,6 +21,10 @@ FIELD_TYPES = [
 ]
 
 
+def default_applicable_to():
+    return ["document"]
+
+
 def _user_model():
     return settings.AUTH_USER_MODEL
 
@@ -35,6 +39,13 @@ SIGNATURE_FORMAT_CHOICES = [
 class MetadataStructure(models.Model):
     """Struttura metadati: nome, estensioni consentite, UO consentite (RF-040..RF-042). Firma e conservazione (FASE 10)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "organizations.Tenant",
+        on_delete=models.CASCADE,
+        related_name="metadata_structures",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
     allowed_file_extensions = models.JSONField(
@@ -66,7 +77,7 @@ class MetadataStructure(models.Model):
     conservation_document_type = models.CharField(max_length=200, blank=True)
 
     applicable_to = models.JSONField(
-        default=lambda: ["document"],
+        default=default_applicable_to,
         blank=True,
         help_text="Tipi entità: 'document', 'folder', 'dossier', 'email'. Default: ['document'].",
     )

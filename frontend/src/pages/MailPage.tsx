@@ -5,7 +5,6 @@ import {
   getMailMessages,
   getMailMessage,
   sendMail,
-  markRead,
   markUnread,
   toggleStar,
   fetchMailNow,
@@ -135,7 +134,7 @@ export function MailPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-lg bg-white shadow">
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow dark:border-slate-700 dark:bg-slate-800">
       {/* Sidebar */}
       <div className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
         <div className="border-b border-slate-200 p-3">

@@ -80,8 +80,8 @@ class UserTypePermissionTest(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data.get("user_type"), "guest")
-        self.assertEqual(response.data.get("role"), "OPERATOR")
+        self.assertEqual(response.data["user"]["user_type"], "guest")
+        self.assertEqual(response.data["user"]["role"], "OPERATOR")
         user = User.objects.get(email="manual@test.com")
         self.assertTrue(user.is_guest)
 

@@ -68,6 +68,29 @@ export interface DocumentItem {
   is_protocolled?: boolean
   visibility?: 'personal' | 'office' | 'shared'
   owner?: string | null
+  /** FASE 30: estrazione testo / OCR */
+  ocr_status?: 'pending' | 'processing' | 'completed' | 'failed' | 'not_needed' | string
+  ocr_confidence?: number | null
+  ocr_error?: string
+  extracted_text_preview?: string
+}
+
+/** Risposta GET /api/documents/{id}/classify/ */
+export interface DocumentClassifySuggestion {
+  type: string
+  label: string
+  confidence: number
+  method: string
+}
+
+export interface DocumentClassifyResponse {
+  detail?: string
+  suggestions: DocumentClassifySuggestion[]
+  metadata_suggestions: Record<string, string | undefined>
+  workflow_suggestion?: string | null
+  classification_suggestion?: string | null
+  workflow_template?: { id: string; name: string } | null
+  classification?: { code: string; label: string } | null
 }
 
 export interface DocumentsParams {
@@ -76,6 +99,8 @@ export interface DocumentsParams {
   created_by?: string
   title?: string
   metadata_structure_id?: string
+  date_from?: string
+  date_to?: string
   ordering?: string
   page?: number
   /** Filtro visibilità in Documenti (GET /api/documents/) */
@@ -343,4 +368,38 @@ export function downloadAttachment(
       a.click()
       URL.revokeObjectURL(objectUrl)
     })
+}
+
+export function bulkDeleteDocuments(documentIds: string[]) {
+  return api.post<{ deleted: number }>('/api/documents/bulk_delete/', { document_ids: documentIds })
+}
+
+export function bulkMoveDocuments(documentIds: string[], folderId: string | null) {
+  return api.post<{ moved: number }>('/api/documents/bulk_move/', {
+    document_ids: documentIds,
+    folder_id: folderId,
+  })
+}
+
+export function bulkStatusDocuments(documentIds: string[], status: string) {
+  return api.post<{ updated: number }>('/api/documents/bulk_status/', { document_ids: documentIds, status })
+}
+
+export function startDocumentWorkflow(documentId: string, templateId: string) {
+  return api.post(`/api/documents/${documentId}/start_workflow/`, { template_id: templateId })
+}
+
+/** FASE 30: classificazione AI rule-based sul documento (richiede testo estratto). */
+export function classifyDocument(id: string): Promise<DocumentClassifyResponse> {
+  return api.get<DocumentClassifyResponse>(`/api/documents/${id}/classify/`).then((r) => r.data)
+}
+
+/** FASE 30: classifica testo arbitrario (es. anteprima upload). */
+export function classifyText(text: string): Promise<DocumentClassifyResponse> {
+  return api.post<DocumentClassifyResponse>('/api/documents/classify_text/', { text }).then((r) => r.data)
+}
+
+/** FASE 30: forza estrazione OCR / testo sul documento. */
+export function runOCR(id: string): Promise<{ detail?: string; ocr_status?: string }> {
+  return api.post(`/api/documents/${id}/run_ocr/`).then((r) => r.data)
 }
