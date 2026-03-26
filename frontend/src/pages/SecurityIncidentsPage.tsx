@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
+import { exportIncidentsExcel, exportIncidentsPdf } from '../services/exportService'
 import {
   createSecurityIncident,
   fetchSecurityIncidents,
@@ -17,6 +19,8 @@ const severityBadge: Record<string, string> = {
 }
 
 export function SecurityIncidentsPage() {
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'ADMIN'
   const [rows, setRows] = useState<SecurityIncident[]>([])
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -58,6 +62,15 @@ export function SecurityIncidentsPage() {
     setModalOpen(true)
   }
 
+  const exportParams = useMemo(
+    () => ({
+      ...(severity ? { severity } : {}),
+      ...(st ? { status: st } : {}),
+      ...(category ? { category } : {}),
+    }),
+    [severity, st, category],
+  )
+
   const handleSave = async (payload: SecurityIncidentPayload) => {
     if (editing) {
       await updateSecurityIncident(editing.id, payload)
@@ -74,13 +87,33 @@ export function SecurityIncidentsPage() {
       </Link>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Incidenti di sicurezza</h1>
-        <button
-          type="button"
-          onClick={openNew}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 dark:hover:bg-indigo-500"
-        >
-          Nuovo incidente
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => exportIncidentsExcel(exportParams)}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                Esporta Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => exportIncidentsPdf(exportParams)}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                Esporta PDF
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={openNew}
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 dark:hover:bg-indigo-500"
+          >
+            Nuovo incidente
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">

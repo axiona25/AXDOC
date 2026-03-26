@@ -1,4 +1,7 @@
+import { useCallback } from 'react'
 import type { DocumentVersionItem } from '../../services/documentService'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { downloadDocument } from '../../services/documentService'
 
 interface VersionHistoryModalProps {
@@ -16,13 +19,32 @@ export function VersionHistoryModal({
   title,
   versions,
 }: VersionHistoryModalProps) {
+  const modalRef = useFocusTrap(open)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(open, closeCb)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-version-history"
+        className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">Storico versioni — {title}</h2>
+          <h2 id="modal-title-version-history" className="text-lg font-semibold text-slate-800">
+            Storico versioni — {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}

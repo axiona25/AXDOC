@@ -252,6 +252,9 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Max refresh token attivi per utente (0 = illimitato). I più vecchi vanno in blacklist.
+MAX_CONCURRENT_SESSIONS = env.int("MAX_CONCURRENT_SESSIONS", default=3)
+
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS", default=["http://localhost:3000"]
 )
@@ -268,13 +271,11 @@ SESSION_COOKIE_AGE = 3600 * 8
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 
-# Password validation (FASE 14)
+# Password validation (policy da SystemSettings.security — vedi DynamicPasswordValidator)
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "apps.authentication.password_validators.UppercasePasswordValidator"},
-    {"NAME": "apps.authentication.password_validators.SpecialCharPasswordValidator"},
+    {"NAME": "apps.authentication.password_validators.DynamicPasswordValidator"},
 ]
 
 MEDIA_URL = "/media/"

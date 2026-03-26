@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react'
+import { useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 
 interface VerificationResultModalProps {
   result: Record<string, unknown>
@@ -6,6 +9,10 @@ interface VerificationResultModalProps {
 }
 
 export function VerificationResultModal({ result, onClose }: VerificationResultModalProps) {
+  const modalRef = useFocusTrap(true)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(true, closeCb)
+
   const valid = result.valid === true
   const error = result.error as string | undefined
   const signerCn = (result.signer_cn as string) ?? ''
@@ -32,10 +39,25 @@ export function VerificationResultModal({ result, onClose }: VerificationResultM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-verification-result"
+        className="w-full max-w-lg rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">Risultato verifica firma</h2>
+          <h2 id="modal-title-verification-result" className="text-lg font-semibold text-slate-800">
+            Risultato verifica firma
+          </h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">
             ✕
           </button>

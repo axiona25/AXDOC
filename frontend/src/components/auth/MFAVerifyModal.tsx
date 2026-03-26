@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId, useCallback } from 'react'
 import { Dialog, DialogTitle } from '@headlessui/react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { verifyMFA } from '../../services/authService'
 import type { User } from '../../types/auth'
 
@@ -11,6 +13,8 @@ interface MFAVerifyModalProps {
 }
 
 export function MFAVerifyModal({ open, mfaPendingToken, onSuccess, onClose }: MFAVerifyModalProps) {
+  const titleId = useId()
+  const trapRef = useFocusTrap(open)
   const [code, setCode] = useState('')
   const [backupCode, setBackupCode] = useState('')
   const [useBackup, setUseBackup] = useState(false)
@@ -70,12 +74,30 @@ export function MFAVerifyModal({ open, mfaPendingToken, onSuccess, onClose }: MF
     submitCode()
   }
 
+  const closeModal = useCallback(() => {
+    onClose?.()
+  }, [onClose])
+  useModalEscape(open, closeModal)
+
   return (
     <Dialog open={open} onClose={onClose ?? (() => {})} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div
+        className="fixed inset-0 bg-black/30"
+        aria-hidden="true"
+        role="presentation"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) closeModal()
+        }}
+      />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-          <DialogTitle className="text-lg font-semibold text-slate-800">
+        <Dialog.Panel
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="mx-auto w-full max-w-sm rounded-lg bg-white p-6 shadow-xl"
+        >
+          <DialogTitle id={titleId} className="text-lg font-semibold text-slate-800">
             Verifica in due passaggi
           </DialogTitle>
           <p className="mt-1 text-sm text-slate-600">

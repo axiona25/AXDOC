@@ -61,3 +61,11 @@ class TestSearchAPI:
         assert r.status_code == 200
         data = r.json()
         assert not any(x["id"] == str(doc.id) for x in data["results"])
+
+    def test_search_empty_query_returns_accessible_docs(self, api_client, user, doc):
+        api_client.force_authenticate(user=user)
+        r = api_client.get("/api/search/", {"q": ""})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_count"] >= 1
+        assert any(x["id"] == str(doc.id) for x in data["results"])

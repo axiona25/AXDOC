@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { getFolders } from '../../services/documentService'
 import { getMetadataStructures } from '../../services/metadataService'
 import { getWorkflowTemplates } from '../../services/workflowService'
@@ -129,13 +131,32 @@ export function TemplateFormModal({ open, onClose, onSaved, initial }: TemplateF
     }
   }
 
+  const modalRef = useFocusTrap(open)
+  const onCloseCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(open, onCloseCb)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-template-form"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">{initial ? 'Modifica template' : 'Nuovo template'}</h2>
+          <h2 id="modal-title-template-form" className="text-lg font-semibold text-slate-800">
+            {initial ? 'Modifica template' : 'Nuovo template'}
+          </h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3 p-4">
           <div>

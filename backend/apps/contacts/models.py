@@ -6,6 +6,8 @@ import uuid
 from django.conf import settings
 from django.db import models
 
+from apps.authentication.encryption import EncryptedCharField
+
 
 CONTACT_TYPE = [
     ("person", "Persona"),
@@ -24,13 +26,13 @@ class Contact(models.Model):
     last_name = models.CharField(max_length=200, blank=True)
     company_name = models.CharField(max_length=300, blank=True, help_text="Nome azienda/ente")
     job_title = models.CharField(max_length=200, blank=True, help_text="Ruolo/qualifica")
-    tax_code = models.CharField(max_length=20, blank=True, help_text="Codice fiscale / P.IVA")
+    tax_code = EncryptedCharField(max_length=20, blank=True, help_text="Codice fiscale / P.IVA")
 
-    # Contatti
-    email = models.EmailField(blank=True, db_index=True)
-    pec = models.EmailField(blank=True, help_text="PEC")
-    phone = models.CharField(max_length=30, blank=True)
-    mobile = models.CharField(max_length=30, blank=True)
+    # Contatti (campi sensibili cifrati a riposo)
+    email = EncryptedCharField(max_length=254, blank=True)
+    pec = EncryptedCharField(max_length=254, blank=True, help_text="PEC")
+    phone = EncryptedCharField(max_length=30, blank=True)
+    mobile = EncryptedCharField(max_length=30, blank=True)
 
     # Indirizzo
     address = models.CharField(max_length=500, blank=True)

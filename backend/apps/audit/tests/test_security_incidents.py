@@ -99,3 +99,22 @@ class SecurityIncidentApiTests(APITestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         inc.refresh_from_db()
         self.assertEqual(inc.status, "resolved")
+
+    def test_export_incidents_excel_admin_only(self):
+        self.client.force_authenticate(self.operator)
+        r = self.client.get("/api/security-incidents/export_excel/")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_export_incidents_pdf_returns_200(self):
+        SecurityIncident.objects.create(
+            title="Export me",
+            description="d",
+            severity="low",
+            category="other",
+            detected_at=timezone.now(),
+            reported_by=self.admin,
+        )
+        self.client.force_authenticate(self.admin)
+        r = self.client.get("/api/security-incidents/export_pdf/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r["Content-Type"], "application/pdf")

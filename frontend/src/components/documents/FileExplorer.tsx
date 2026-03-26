@@ -34,6 +34,7 @@ import { BulkActionBar } from '../common/BulkActionBar'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { useAuthStore } from '../../store/authStore'
 import { ConfirmModal } from '../common/ConfirmModal'
+import { announce } from '../common/ScreenReaderAnnouncer'
 
 export function FileExplorer() {
   const user = useAuthStore((s) => s.user)
@@ -190,25 +191,31 @@ export function FileExplorer() {
 
   const runBulkDelete = async () => {
     if (bulk.ids.length === 0) return
+    const n = bulk.ids.length
     await bulkDeleteDocuments(bulk.ids)
     bulk.deselectAll()
     loadDocuments()
     setDetailDoc(null)
+    announce(`${n} documenti eliminati`)
   }
 
   const runBulkMove = async (folderId: string | null) => {
     if (bulk.ids.length === 0) return
+    const n = bulk.ids.length
     await bulkMoveDocuments(bulk.ids, folderId)
     bulk.deselectAll()
     setMoveOpen(false)
     loadDocuments()
+    announce(`${n} documenti spostati`)
   }
 
   const runBulkArchive = async () => {
     if (bulk.ids.length === 0) return
+    const n = bulk.ids.length
     await bulkStatusDocuments(bulk.ids, 'ARCHIVED')
     bulk.deselectAll()
     loadDocuments()
+    announce(`${n} documenti archiviati`)
   }
 
   const handleNewFolder = () => {
@@ -279,6 +286,7 @@ export function FileExplorer() {
     deleteDocument(doc.id).then(() => {
       loadDocuments()
       if (detailDoc?.id === doc.id) setDetailDoc(null)
+      announce('Documento eliminato')
     })
   }
 

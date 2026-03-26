@@ -9,6 +9,11 @@ vi.mock('../../services/archiveService', () => ({
 }))
 
 describe('ArchivePage', () => {
+  it('shows massimario tab label', () => {
+    render(<ArchivePage />)
+    expect(screen.getByText('Massimario di scarto')).toBeInTheDocument()
+  })
+
   it('renders archive page', async () => {
     render(<ArchivePage />)
     expect(screen.getByText(/Archivio Documentale/)).toBeInTheDocument()

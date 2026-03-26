@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useId, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -40,6 +42,8 @@ export function CreateUserModal({
   onSuccess,
   organizations,
 }: CreateUserModalProps) {
+  const successTitleId = useId()
+  const mainTitleId = useId()
   const [error, setError] = useState<string | null>(null)
   const [successData, setSuccessData] = useState<{
     email: string
@@ -66,6 +70,9 @@ export function CreateUserModal({
       send_welcome_email: true,
     },
   })
+
+  const successTrapRef = useFocusTrap(!!successData)
+  const mainTrapRef = useFocusTrap(isOpen && !successData)
 
   const userType = watch('user_type')
   const generatePassword = watch('generate_password')
@@ -128,12 +135,19 @@ export function CreateUserModal({
     }
   }
 
-  const handleCloseSuccess = () => {
+  const handleCloseSuccess = useCallback(() => {
     setSuccessData(null)
     reset()
     onSuccess()
     onClose()
-  }
+  }, [reset, onSuccess, onClose])
+
+  const escapeHandler = useCallback(() => {
+    if (successData) handleCloseSuccess()
+    else onClose()
+  }, [successData, handleCloseSuccess, onClose])
+
+  useModalEscape(isOpen, escapeHandler)
 
   if (!isOpen) return null
 
@@ -143,8 +157,14 @@ export function CreateUserModal({
       <Dialog open={!!successData} onClose={() => {}} className="relative z-[60]">
         <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <DialogTitle className="text-lg font-semibold text-slate-800">
+          <Dialog.Panel
+            ref={successTrapRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={successTitleId}
+            className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+          >
+            <DialogTitle id={successTitleId} className="text-lg font-semibold text-slate-800">
               Utente creato con successo!
             </DialogTitle>
             <div className="mt-4 space-y-3">
@@ -188,9 +208,24 @@ export function CreateUserModal({
       </Dialog>
 
       {/* Modal di creazione utente */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Nuovo utente</h2>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        role="presentation"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget && !successData) onClose()
+        }}
+      >
+        <div
+          ref={mainTrapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={mainTitleId}
+          className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <h2 id={mainTitleId} className="mb-4 text-lg font-semibold text-slate-800">
+            Nuovo utente
+          </h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Email *</label>
@@ -307,8 +342,8 @@ export function CreateUserModal({
             </button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
     </>
   )
 }

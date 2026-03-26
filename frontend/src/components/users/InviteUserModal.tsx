@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -64,12 +66,31 @@ export function InviteUserModal({
     }
   }
 
+  const modalRef = useFocusTrap(isOpen)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(isOpen, closeCb)
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Invita utente</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-invite-user"
+        className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 id="modal-title-invite-user" className="mb-4 text-lg font-semibold text-slate-800">
+          Invita utente
+        </h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>

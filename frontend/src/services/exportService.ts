@@ -60,3 +60,9 @@ export const exportAuditExcel = (params?: Record<string, string | undefined>) =>
 
 export const exportAuditPdf = (params?: Record<string, string | undefined>) =>
   downloadExport('/api/audit/export_pdf/', params)
+
+export const exportIncidentsExcel = (params?: Record<string, string | undefined>) =>
+  downloadExport('/api/security-incidents/export_excel/', params)
+
+export const exportIncidentsPdf = (params?: Record<string, string | undefined>) =>
+  downloadExport('/api/security-incidents/export_pdf/', params)

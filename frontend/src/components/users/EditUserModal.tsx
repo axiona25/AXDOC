@@ -1,4 +1,6 @@
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { User } from '../../types/auth'
 import {
   updateUser,
@@ -341,6 +343,10 @@ export function EditUserModal({
     }
   }
 
+  const modalRef = useFocusTrap(Boolean(isOpen && user))
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(Boolean(isOpen && user), closeCb)
+
   if (!isOpen || !user) return null
 
   const tabs: { id: TabId; label: string; badge?: number }[] = [
@@ -355,12 +361,28 @@ export function EditUserModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" style={{ maxHeight: '85vh' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-edit-user"
+        className="flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+        style={{ maxHeight: '85vh' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="border-b border-slate-200 px-6 pb-0 pt-5">
           <div className="mb-2 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-800">Modifica utente</h2>
+              <h2 id="modal-title-edit-user" className="text-lg font-semibold text-slate-800">
+                Modifica utente
+              </h2>
               <p className="text-sm text-slate-500">{user.email}</p>
             </div>
             <button

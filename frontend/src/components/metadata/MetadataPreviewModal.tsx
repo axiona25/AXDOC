@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { getStructureDocuments } from '../../services/metadataService'
 import { DynamicMetadataForm } from './DynamicMetadataForm'
 import type { MetadataStructure, MetadataValues } from '../../types/metadata'
@@ -24,13 +26,30 @@ export function MetadataPreviewModal({ open, onClose, structure }: MetadataPrevi
     }
   }, [open, structure?.id])
 
+  const modalRef = useFocusTrap(open)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(open, closeCb)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-metadata-preview"
+        className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">
+          <h2 id="modal-title-metadata-preview" className="text-lg font-semibold text-slate-800">
             Anteprima — {structure?.name ?? ''}
           </h2>
           <button

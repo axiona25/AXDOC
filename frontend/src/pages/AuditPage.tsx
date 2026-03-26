@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { FileSpreadsheet, FileText } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { getAuditLog } from '../services/auditService'
 import type { AuditLogItem } from '../services/auditService'
 import { exportAuditExcel, exportAuditPdf } from '../services/exportService'
+import { announce } from '../components/common/ScreenReaderAnnouncer'
 
 const ACTION_LABELS: Record<string, string> = {
   LOGIN: 'Accesso',
@@ -53,6 +54,17 @@ export function AuditPage() {
     ...(userId.trim() && { user_id: userId.trim() }),
     ...(actionFilter.trim() && { action: actionFilter.trim() }),
   })
+
+  const totalPages = Math.max(1, Math.ceil(total / 20))
+
+  const goPage = useCallback(
+    (next: number) => {
+      const p = Math.min(Math.max(1, next), totalPages)
+      setPage(p)
+      announce(`Pagina ${p} di ${totalPages}, ${total} risultati`)
+    },
+    [totalPages, total],
+  )
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-6">
@@ -157,7 +169,7 @@ export function AuditPage() {
               <button
                 type="button"
                 disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => goPage(page - 1)}
                 className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
               >
                 Precedente
@@ -166,7 +178,7 @@ export function AuditPage() {
               <button
                 type="button"
                 disabled={page * 20 >= total}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => goPage(page + 1)}
                 className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
               >
                 Successiva

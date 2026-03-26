@@ -9,6 +9,7 @@ import {
   type WorkflowTemplate,
 } from '../../services/workflowService'
 import { useAuthStore } from '../../store/authStore'
+import { announce } from '../common/ScreenReaderAnnouncer'
 
 const ACTION_LABELS: Record<string, { label: string; color: string; icon: string }> = {
   review: { label: 'Revisione', color: 'bg-blue-100 text-blue-800', icon: '👁' },
@@ -91,6 +92,8 @@ export function WorkflowTab({ documentId }: WorkflowTabProps) {
       setShowActionModal(null)
       setActionComment('')
       loadData()
+      if (action === 'reject') announce('Step rifiutato')
+      else announce('Step approvato')
     } catch (e: any) {
       alert(e?.response?.data?.detail || 'Errore.')
     } finally {

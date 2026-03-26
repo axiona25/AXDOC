@@ -1,4 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { announce } from '../common/ScreenReaderAnnouncer'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { DocumentItem, FolderItem } from '../../services/documentService'
 import { getDocument } from '../../services/documentService'
 import type { MetadataStructure, MetadataValues } from '../../types/metadata'
@@ -90,12 +93,15 @@ export function UploadModal({
     pollCancel.current = false
   }, [defaultFolderId])
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!uploading && !compressing) {
       reset()
       onClose()
     }
-  }
+  }, [uploading, compressing, reset, onClose])
+
+  const modalRef = useFocusTrap(open)
+  useModalEscape(open, handleClose)
 
   const selectedTemplate = templateId ? templates.find((t) => t.id === templateId) : null
 
@@ -150,6 +156,7 @@ export function UploadModal({
         ...(showVisibility && { visibility }),
         templateMeta: meta,
       })
+      announce('Documento caricato con successo')
       if (created && typeof created === 'object' && 'id' in created && created.id) {
         setFollowupDoc(created as DocumentItem)
         setPhase('followup')
@@ -157,6 +164,7 @@ export function UploadModal({
         handleClose()
       }
     } catch (err) {
+      announce('Errore nel caricamento del documento', 'assertive')
       setError(err instanceof Error ? err.message : 'Upload fallito.')
     } finally {
       setUploading(false)
@@ -244,14 +252,25 @@ export function UploadModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose()
+      }}
+    >
       <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-upload"
         className={`w-full rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800 ${
           phase === 'followup' ? 'max-w-2xl' : 'max-w-lg'
         }`}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-600">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          <h2 id="modal-title-upload" className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             {phase === 'followup' ? 'Documento caricato' : 'Carica documento'}
           </h2>
           <button

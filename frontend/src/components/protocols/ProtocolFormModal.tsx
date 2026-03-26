@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { CreateProtocolPayload } from '../../services/protocolService'
 import { createProtocolWithFile } from '../../services/protocolService'
 import type { OrganizationalUnit } from '../../services/organizationService'
@@ -265,13 +267,31 @@ export function ProtocolFormModal({
 
   const ouName = ous.find((o) => o.id === organizationalUnitId)?.name || '—'
 
+  const modalRef = useFocusTrap(isOpen)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(isOpen, closeCb)
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
-      <div className="flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" style={{ maxHeight: '85vh' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-protocol-form"
+        className="flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+        style={{ maxHeight: '85vh' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="border-b border-slate-200 px-6 pb-4 pt-5">
-          <h2 className="mb-3 text-lg font-semibold text-slate-800">
+          <h2 id="modal-title-protocol-form" className="mb-3 text-lg font-semibold text-slate-800">
             {linkedDocument ? 'Protocolla documento' : 'Nuovo protocollo'}
           </h2>
           <div className="flex flex-wrap items-center gap-1">

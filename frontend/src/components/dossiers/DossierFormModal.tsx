@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { CreateDossierPayload, DossierDetailItem } from '../../services/dossierService'
 import { getMetadataStructures } from '../../services/metadataService'
 import type { MetadataStructure } from '../../types/metadata'
@@ -112,12 +114,29 @@ export function DossierFormModal({
     }
   }
 
+  const modalRef = useFocusTrap(isOpen)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(isOpen, closeCb)
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="dossier-form-title">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h2 id="dossier-form-title" className="mb-4 text-lg font-semibold text-slate-800">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-dossier-form"
+        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 id="modal-title-dossier-form" className="mb-4 text-lg font-semibold text-slate-800">
           {initial ? 'Modifica fascicolo' : 'Nuovo fascicolo'}
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">

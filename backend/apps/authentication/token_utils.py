@@ -10,6 +10,9 @@ def issue_refresh_for_user(user) -> RefreshToken:
         s = str(tid)
         refresh["tenant_id"] = s
         refresh.access_token["tenant_id"] = s
+    from .session_limit import limit_concurrent_refresh_sessions
+
+    limit_concurrent_refresh_sessions(user)
     return refresh
 
 

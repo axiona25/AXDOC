@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getSettings, testEmail, testLdap } from '../services/adminService'
+import { getSettings, patchSettings, testEmail, testLdap } from '../services/adminService'
 import type { SystemSettingsData } from '../services/adminService'
 
 type TabId = 'email' | 'organization' | 'security' | 'storage' | 'ldap' | 'conservation'
@@ -21,6 +21,16 @@ export function SettingsPage() {
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [testingEmail, setTestingEmail] = useState(false)
   const [testingLdap, setTestingLdap] = useState(false)
+  const [savingPolicy, setSavingPolicy] = useState(false)
+  const [pwdDraft, setPwdDraft] = useState({
+    password_min_length: 8,
+    password_require_uppercase: true,
+    password_require_lowercase: true,
+    password_require_digit: true,
+    password_require_special: true,
+    password_expiry_days: 0,
+    password_history_count: 0,
+  })
 
   useEffect(() => {
     getSettings()
@@ -28,6 +38,20 @@ export function SettingsPage() {
       .catch(() => setData(null))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!data) return
+    const s = data.security || {}
+    setPwdDraft({
+      password_min_length: Math.min(30, Math.max(6, Number(s.password_min_length ?? 8))),
+      password_require_uppercase: s.password_require_uppercase !== false,
+      password_require_lowercase: s.password_require_lowercase !== false,
+      password_require_digit: s.password_require_digit !== false,
+      password_require_special: s.password_require_special !== false,
+      password_expiry_days: Math.max(0, Number(s.password_expiry_days ?? 0)),
+      password_history_count: Math.max(0, Number(s.password_history_count ?? 0)),
+    })
+  }, [data])
 
   const handleTestEmail = async () => {
     setTestingEmail(true)
@@ -40,6 +64,26 @@ export function SettingsPage() {
       setMessage({ type: 'err', text: err?.response?.data?.detail || 'Errore invio email.' })
     } finally {
       setTestingEmail(false)
+    }
+  }
+
+  const handleSavePasswordPolicy = async () => {
+    if (!data) return
+    setSavingPolicy(true)
+    setMessage(null)
+    try {
+      const updated = await patchSettings({
+        security: {
+          ...data.security,
+          ...pwdDraft,
+        },
+      })
+      setData(updated)
+      setMessage({ type: 'ok', text: 'Policy password salvata.' })
+    } catch {
+      setMessage({ type: 'err', text: 'Salvataggio policy non riuscito.' })
+    } finally {
+      setSavingPolicy(false)
     }
   }
 
@@ -130,9 +174,98 @@ export function SettingsPage() {
         )}
 
         {tab === 'security' && (
-          <div>
-            <p className="text-sm text-slate-600 dark:text-slate-300">Tentativi login, timeout sessione, MFA per admin.</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sezione in fase di configurazione.</p>
+          <div className="max-w-xl space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Policy password applicata a creazione utenti, inviti e reset (validazione lato server).
+            </p>
+            <div>
+              <label htmlFor="pwd-min-len" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Lunghezza minima (6–30)
+              </label>
+              <input
+                id="pwd-min-len"
+                type="number"
+                min={6}
+                max={30}
+                value={pwdDraft.password_min_length}
+                onChange={(e) =>
+                  setPwdDraft((d) => ({ ...d, password_min_length: Number(e.target.value) || 6 }))
+                }
+                className="w-32 rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex flex-col gap-2 text-sm text-slate-800 dark:text-slate-200">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={pwdDraft.password_require_uppercase}
+                  onChange={(e) => setPwdDraft((d) => ({ ...d, password_require_uppercase: e.target.checked }))}
+                />
+                Richiedi lettera maiuscola
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={pwdDraft.password_require_lowercase}
+                  onChange={(e) => setPwdDraft((d) => ({ ...d, password_require_lowercase: e.target.checked }))}
+                />
+                Richiedi lettera minuscola
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={pwdDraft.password_require_digit}
+                  onChange={(e) => setPwdDraft((d) => ({ ...d, password_require_digit: e.target.checked }))}
+                />
+                Richiedi numero
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={pwdDraft.password_require_special}
+                  onChange={(e) => setPwdDraft((d) => ({ ...d, password_require_special: e.target.checked }))}
+                />
+                Richiedi carattere speciale
+              </label>
+            </div>
+            <div>
+              <label htmlFor="pwd-expiry" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Scadenza password (giorni, 0 = mai) — memorizzato in impostazioni; enforcement completo in evoluzione
+              </label>
+              <input
+                id="pwd-expiry"
+                type="number"
+                min={0}
+                value={pwdDraft.password_expiry_days}
+                onChange={(e) =>
+                  setPwdDraft((d) => ({ ...d, password_expiry_days: Math.max(0, Number(e.target.value) || 0) }))
+                }
+                className="w-32 rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label htmlFor="pwd-history" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Storico password non riutilizzabili (0 = disabilitato)
+              </label>
+              <input
+                id="pwd-history"
+                type="number"
+                min={0}
+                value={pwdDraft.password_history_count}
+                onChange={(e) =>
+                  setPwdDraft((d) => ({ ...d, password_history_count: Math.max(0, Number(e.target.value) || 0) }))
+                }
+                className="w-32 rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSavePasswordPolicy()}
+              disabled={savingPolicy}
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:hover:bg-indigo-500"
+            >
+              {savingPolicy ? 'Salvataggio...' : 'Salva policy password'}
+            </button>
           </div>
         )}
 

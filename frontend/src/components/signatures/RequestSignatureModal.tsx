@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import { getUsers } from '../../services/userService'
 import { requestForProtocol, requestForDossier } from '../../services/signatureService'
 import type { SignatureTargetType } from '../../types/signatures'
@@ -88,13 +90,32 @@ export function RequestSignatureModal({
     }
   }
 
+  const modalRef = useFocusTrap(open)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(open, closeCb)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-request-signature"
+        className="w-full max-w-lg rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">Richiedi firma</h2>
+          <h2 id="modal-title-request-signature" className="text-lg font-semibold text-slate-800">
+            Richiedi firma
+          </h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">
             ✕
           </button>

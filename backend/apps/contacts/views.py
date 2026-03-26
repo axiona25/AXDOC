@@ -25,14 +25,15 @@ class ContactViewSet(viewsets.ModelViewSet):
 
         search = self.request.query_params.get("search", "").strip()
         if search:
-            qs = qs.filter(
+            q = (
                 Q(first_name__icontains=search)
                 | Q(last_name__icontains=search)
                 | Q(company_name__icontains=search)
-                | Q(email__icontains=search)
-                | Q(pec__icontains=search)
-                | Q(phone__icontains=search)
             )
+            # email/pec/phone sono cifrati: niente icontains; solo uguaglianza esatta su email/pec
+            if "@" in search:
+                q |= Q(email=search) | Q(pec=search)
+            qs = qs.filter(q)
 
         contact_type = self.request.query_params.get("type")
         if contact_type:
@@ -65,17 +66,14 @@ class ContactViewSet(viewsets.ModelViewSet):
         if len(q) < 2:
             return Response([])
 
-        qs = (
-            self.get_queryset()
-            .filter(
-                Q(first_name__icontains=q)
-                | Q(last_name__icontains=q)
-                | Q(company_name__icontains=q)
-                | Q(email__icontains=q)
-                | Q(pec__icontains=q)
-            )
-            .distinct()[:15]
+        q_filter = (
+            Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(company_name__icontains=q)
         )
+        if "@" in q:
+            q_filter |= Q(email=q) | Q(pec=q)
+        qs = self.get_queryset().filter(q_filter).distinct()[:15]
 
         return Response(ContactListSerializer(qs, many=True).data)
 

@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { CreateDossierPayload } from '../../services/dossierService'
 import { createDossier } from '../../services/dossierService'
 import { getMetadataStructures } from '../../services/metadataService'
@@ -115,15 +117,32 @@ export function DossierCreateWizard({ isOpen, onClose, onSuccess }: DossierCreat
     }
   }
 
+  const modalRef = useFocusTrap(isOpen)
+  const closeCb = useCallback(() => onClose(), [onClose])
+  useModalEscape(isOpen, closeCb)
+
   if (!isOpen) return null
 
   const ou = ous.find((o) => o.id === ouId)
   const previewIdentifier = ou ? `${new Date().getFullYear()}/${ou.code}/XXXX` : '—'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="dossier-wizard-title">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h2 id="dossier-wizard-title" className="mb-4 text-lg font-semibold text-slate-800">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-dossier-wizard"
+        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 id="modal-title-dossier-wizard" className="mb-4 text-lg font-semibold text-slate-800">
           Nuovo fascicolo — Step {step}/3
         </h2>
         <div className="mb-4 flex gap-2">

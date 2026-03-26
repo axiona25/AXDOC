@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Dialog, DialogTitle } from '@headlessui/react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -27,6 +28,8 @@ interface ChangePasswordModalProps {
 }
 
 export function ChangePasswordModal({ isOpen, onSuccess }: ChangePasswordModalProps) {
+  const titleId = useId()
+  const trapRef = useFocusTrap(isOpen)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,8 +63,14 @@ export function ChangePasswordModal({ isOpen, onSuccess }: ChangePasswordModalPr
     <Dialog open={isOpen} onClose={() => {}} className="relative z-50">
       <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-          <DialogTitle className="text-lg font-semibold text-slate-800">
+        <Dialog.Panel
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+        >
+          <DialogTitle id={titleId} className="text-lg font-semibold text-slate-800">
             Cambio password obbligatorio
           </DialogTitle>
           <p className="mt-1 text-sm text-slate-600">

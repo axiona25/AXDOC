@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import type { CreateSharePayload, CreateShareResponse } from '../../services/sharingService'
 import { getUsers } from '../../services/userService'
 import type { User } from '../../types/auth'
@@ -92,7 +94,7 @@ export function ShareModal({
     })
   }
 
-  const resetAndClose = () => {
+  const resetAndClose = useCallback(() => {
     setResult(null)
     setRecipientType('external')
     setRecipientUserId('')
@@ -103,7 +105,7 @@ export function ShareModal({
     setPassword('')
     setError('')
     onClose()
-  }
+  }, [onClose])
 
   useEffect(() => {
     if (open && recipientType === 'internal') {
@@ -111,13 +113,31 @@ export function ShareModal({
     }
   }, [open, recipientType, userSearch])
 
+  const modalRef = useFocusTrap(open)
+  useModalEscape(open, resetAndClose)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={resetAndClose}>
-      <div className="max-h-[90vh] w-full max-w-md overflow-auto rounded-lg bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) resetAndClose()
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title-share"
+        className="max-h-[90vh] w-full max-w-md overflow-auto rounded-lg bg-white p-4 shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-          <h3 className="text-lg font-semibold text-slate-800">Condividi {targetLabel}</h3>
+          <h3 id="modal-title-share" className="text-lg font-semibold text-slate-800">
+            Condividi {targetLabel}
+          </h3>
           <button type="button" onClick={resetAndClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">✕</button>
         </div>
 

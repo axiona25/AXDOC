@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useCallback, useId } from 'react'
 import { Dialog, DialogTitle } from '@headlessui/react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useModalEscape } from '../../hooks/useModalAccessibility'
 import {
   downloadImportTemplate,
   importPreview,
@@ -17,6 +19,8 @@ interface ImportUsersModalProps {
 type Step = 'upload' | 'preview' | 'results'
 
 export function ImportUsersModal({ isOpen, onClose, onSuccess }: ImportUsersModalProps) {
+  const titleId = useId()
+  const trapRef = useFocusTrap(isOpen)
   const [step, setStep] = useState<Step>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreviewRow[]>([])
@@ -70,27 +74,42 @@ export function ImportUsersModal({ isOpen, onClose, onSuccess }: ImportUsersModa
     }
   }
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setStep('upload')
     setFile(null)
     setPreview([])
     setResult(null)
     setError(null)
     onClose()
-  }
+  }, [onClose])
 
   const downloadTemplate = (format: 'csv' | 'xlsx') => {
     downloadImportTemplate(format).catch(() => setError('Errore download template'))
   }
 
+  useModalEscape(isOpen, handleClose)
+
   if (!isOpen) return null
 
   return (
     <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div
+        className="fixed inset-0 bg-black/30"
+        aria-hidden="true"
+        role="presentation"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) handleClose()
+        }}
+      />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-          <DialogTitle className="text-lg font-semibold text-slate-800">
+        <Dialog.Panel
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="mx-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+        >
+          <DialogTitle id={titleId} className="text-lg font-semibold text-slate-800">
             Importa utenti
           </DialogTitle>
 
