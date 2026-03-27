@@ -77,54 +77,6 @@ class SignatureRequestViewSet(viewsets.ReadOnlyModelViewSet):
             return SignatureRequestDetailSerializer
         return SignatureRequestSerializer
 
-    @action(detail=True, methods=["post"], url_path="verify_otp")
-    def verify_otp(self, request, pk=None):
-        """Verifica OTP e completa firma (RF-078). Solo il signer."""
-        sig = self.get_object()
-        if sig.signer_id != request.user.id:
-            return Response({"detail": "Solo il firmatario può inserire l'OTP."}, status=status.HTTP_403_FORBIDDEN)
-        ser = OTPVerifySerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        success, message = SignatureService.verify_otp(sig, ser.validated_data["otp_code"])
-        if success:
-            return Response({"success": True, "message": message})
-        return Response({"success": False, "message": message}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=["post"], url_path="resend_otp")
-    def resend_otp(self, request, pk=None):
-        """Reinvia OTP. Solo il signer, solo se pending_otp e non scaduto."""
-        sig = self.get_object()
-        if sig.signer_id != request.user.id:
-            return Response({"detail": "Non autorizzato."}, status=status.HTTP_403_FORBIDDEN)
-        if sig.status != "pending_otp":
-            return Response({"detail": "Richiesta non in attesa di OTP."}, status=status.HTTP_400_BAD_REQUEST)
-        if sig.otp_expires_at and sig.otp_expires_at < timezone.now():
-            return Response({"detail": "OTP scaduto."}, status=status.HTTP_400_BAD_REQUEST)
-        if sig.otp_resend_count >= sig.max_otp_resends:
-            return Response({"detail": "Numero massimo di reinvii raggiunto."}, status=status.HTTP_400_BAD_REQUEST)
-        provider = get_signature_provider()
-        doc_path = ""
-        if sig.document_version and getattr(sig.document_version, "file", None) and sig.document_version.file:
-            try:
-                p = getattr(sig.document_version.file, "path", None)
-                if p:
-                    doc_path = p
-            except (ValueError, OSError):
-                pass
-        result = provider.request_signature(
-            document_path=doc_path,
-            signer_phone=getattr(sig.signer, "phone", None) or getattr(sig.signer, "mobile", None) or "***0000",
-            format=sig.format,
-            reason=sig.signature_reason,
-            location=sig.signature_location,
-        )
-        sig.otp_attempts = 0
-        sig.otp_resend_count += 1
-        sig.otp_expires_at = result.get("otp_expires_at") or (timezone.now() + timedelta(minutes=10))
-        sig.otp_sent_at = timezone.now()
-        sig.save(update_fields=["otp_attempts", "otp_resend_count", "otp_expires_at", "otp_sent_at", "updated_at"])
-        return Response({"message": result.get("message", "OTP reinviato.")})
-
     @action(detail=True, methods=["get"], url_path="verify")
     def verify(self, request, pk=None):
         """Verifica validità firma (RF-075, FASE 20). Usa verification.verify_signature per risultato completo."""

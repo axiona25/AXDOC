@@ -176,13 +176,18 @@ class TestBackupListWithFiles:
         dbdir = tmp_path / "db"
         dbdir.mkdir()
         (dbdir / "snap.dump").write_bytes(b"x")
+        (dbdir / "ignored.txt").write_bytes(b"z")
+        (dbdir / "notfile.dump").mkdir()
         media = tmp_path / "media"
         media.mkdir()
         (media / "files.tar.gz").write_bytes(b"y")
         with override_settings(DBBACKUP_STORAGE_OPTIONS={"location": str(dbdir)}):
             r = admin_client.get("/api/admin/backups/")
         assert r.status_code == 200
-        assert any("snap.dump" in (x.get("filename") or "") for x in r.data.get("db", []))
+        db_names = [x.get("filename") for x in r.data.get("db", [])]
+        assert any("snap.dump" in (n or "") for n in db_names)
+        assert not any("ignored.txt" in (n or "") for n in db_names)
+        assert not any("notfile.dump" in (n or "") for n in db_names)
         assert any("files.tar.gz" in (x.get("filename") or "") for x in r.data.get("media", []))
 
 
@@ -194,3 +199,58 @@ def test_list_backup_files_empty_dir(tmp_path):
 
 def test_list_backup_files_nonexistent():
     assert _list_backup_files("/nonexistent-path-axdoc-33d", ".dump", "db") == []
+
+
+def test_list_backup_files_oserror_on_stat(tmp_path, monkeypatch):
+    d = tmp_path / "st"
+    d.mkdir()
+    (d / "bad.dump").write_bytes(b"x")
+    monkeypatch.setattr(
+        "apps.admin_panel.views.os.path.getsize",
+        lambda _p: (_ for _ in ()).throw(OSError("no stat")),
+    )
+    out = _list_backup_files(str(d), ".dump", "db", limit=5)
+    assert len(out) == 1
+    assert out[0].get("error") == "inaccessible"
+
+
+@pytest.mark.django_db
+class TestSettingsTestLdapBindFailure:
+    @patch("apps.admin_panel.views.SystemSettings.get_settings")
+    def test_test_ldap_exception_returns_400(self, mock_gs, admin_client):
+        inst = MagicMock()
+        inst.ldap = {"server_uri": "ldap://localhost", "bind_dn": "cn=x", "password": "y"}
+        mock_gs.return_value = inst
+        conn = MagicMock()
+        conn.simple_bind_s.side_effect = Exception("bind failed")
+        ldap_mod = MagicMock()
+        ldap_mod.initialize = MagicMock(return_value=conn)
+        with patch.dict(sys.modules, {"ldap": ldap_mod}):
+            r = admin_client.post("/api/admin/settings/test_ldap/", {}, format="json")
+        assert r.status_code == 400
+        assert "bind failed" in (r.data.get("detail") or "")
+
+
+@pytest.mark.django_db
+class TestSystemInfoFailures:
+    def test_redis_ping_failure(self, admin_client):
+        import redis
+
+        with patch.object(redis, "from_url", side_effect=OSError("redis down")):
+            r = admin_client.get("/api/admin/system_info/")
+        assert r.status_code == 200
+        assert r.data.get("redis_connected") is False
+
+    def test_ldap_connect_failure_when_enabled(self, admin_client):
+        ldap_mod = MagicMock()
+        ldap_mod.initialize.side_effect = Exception("ldap init fail")
+        with patch.dict(sys.modules, {"ldap": ldap_mod}):
+            with override_settings(
+                LDAP_ENABLED=True,
+                AUTH_LDAP_SERVER_URI="ldap://localhost",
+                AUTH_LDAP_BIND_DN="",
+                AUTH_LDAP_BIND_PASSWORD="",
+            ):
+                r = admin_client.get("/api/admin/system_info/")
+        assert r.status_code == 200
+        assert r.data.get("ldap_connected") is False

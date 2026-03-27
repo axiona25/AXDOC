@@ -136,6 +136,34 @@ def test_get_assignees_document_ou(document_with_folder):
 
 
 @pytest.mark.django_db
+def test_get_assignees_ou_role_without_ou_returns_empty(document_with_folder):
+    _admin, _reviewer, document = document_with_folder
+    tpl = WorkflowTemplate.objects.create(name="T-OU-EMPTY", is_published=True)
+    step = WorkflowStep.objects.create(
+        template=tpl,
+        name="OU none",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=None,
+        assignee_ou_role="REVIEWER",
+    )
+    assert WorkflowService.get_assignees(step, document) == []
+
+
+@pytest.mark.django_db
+def test_get_assignees_document_ou_without_permissions(document_with_folder):
+    _admin, _reviewer, document = document_with_folder
+    tpl = WorkflowTemplate.objects.create(name="T-DOCOU-EMPTY", is_published=True)
+    step = WorkflowStep.objects.create(
+        template=tpl,
+        name="Doc OU empty",
+        order=1,
+        assignee_type="document_ou",
+    )
+    assert WorkflowService.get_assignees(step, document) == []
+
+
+@pytest.mark.django_db
 def test_check_deadline_violations_returns_overdue_instances(document_with_folder):
     admin, reviewer, document = document_with_folder
     tpl = WorkflowTemplate.objects.create(name="T4", is_published=True)

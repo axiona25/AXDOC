@@ -162,3 +162,44 @@ class MetadataStructureAPITest(TestCase):
         )
         self.assertEqual(r.status_code, 400)
         self.assertIn("tipo", r.data["detail"])
+
+    def test_list_applicable_to_and_is_active_filters(self):
+        MetadataStructure.objects.create(name="ApplicableDocOnly", created_by=self.admin)
+        self.client.force_authenticate(user=self.operator)
+        r = self.client.get("/api/metadata/structures/", {"applicable_to": "document", "is_active": "true"})
+        self.assertEqual(r.status_code, 200)
+        results = r.data.get("results", r.data) if isinstance(r.data, dict) else r.data
+        names = {s["name"] for s in results}
+        self.assertIn("Contratto", names)
+
+    def test_documents_action_lists_linked_documents(self):
+        folder = Folder.objects.create(name="FMetaDocs", created_by=self.admin)
+        Document.objects.create(
+            title="Linked meta doc",
+            folder=folder,
+            metadata_structure=self.structure,
+            created_by=self.admin,
+        )
+        self.client.force_authenticate(user=self.operator)
+        r = self.client.get(f"/api/metadata/structures/{self.structure.id}/documents/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsInstance(r.data, list)
+        self.assertGreaterEqual(len(r.data), 1)
+
+    def test_destroy_without_linked_documents_soft_deletes(self):
+        orphan = MetadataStructure.objects.create(name="OrphanStructure353", created_by=self.admin)
+        self.client.force_authenticate(user=self.admin)
+        r = self.client.delete(f"/api/metadata/structures/{orphan.id}/")
+        self.assertEqual(r.status_code, 204)
+        orphan.refresh_from_db()
+        self.assertFalse(orphan.is_active)
+
+    def test_patch_structure_without_linked_documents(self):
+        s = MetadataStructure.objects.create(name="PatchOnly353", description="Old", created_by=self.admin)
+        MetadataField.objects.create(
+            structure=s, name="pf", label="Pf", field_type="text", is_required=False, order=0
+        )
+        self.client.force_authenticate(user=self.admin)
+        r = self.client.patch(f"/api/metadata/structures/{s.id}/", {"description": "New desc"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data.get("description"), "New desc")
