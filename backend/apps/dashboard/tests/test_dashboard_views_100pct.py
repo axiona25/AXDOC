@@ -1,6 +1,7 @@
 """Rami dashboard: trend filtrati, workflow, storage, stats per ruolo."""
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -273,3 +274,33 @@ class TestDashboardViewsCoverage:
         r = c.get("/api/dashboard/my_tasks/")
         assert r.status_code == 200
         assert len(r.json().get("results", [])) >= 1
+
+    def test_protocols_trend_skips_aggregate_row_with_null_month(self, db, tenant, ou):
+        """Riga difensiva: TruncMonth può teoricamente produrre month=None in edge case DB."""
+        admin = User.objects.create_user(
+            email=f"pnm-{uuid.uuid4().hex[:8]}@t.com",
+            password="Test123!",
+            role="ADMIN",
+        )
+        admin.tenant = tenant
+        admin.save(update_fields=["tenant"])
+        OrganizationalUnitMembership.objects.create(user=admin, organizational_unit=ou, role="ADMIN")
+        c = APIClient()
+        c.force_authenticate(user=admin)
+        m = timezone.make_aware(datetime(2024, 6, 1, 0, 0, 0), timezone.get_current_timezone())
+        rows = [
+            {"month": None, "direction": "in", "count": 999},
+            {"month": m, "direction": "in", "count": 2},
+        ]
+        chain = MagicMock()
+        chain.annotate.return_value = chain
+        chain.values.return_value = chain
+        chain.order_by.return_value = rows
+        with patch("apps.dashboard.views.Protocol.objects.filter", return_value=chain):
+            r = c.get("/api/dashboard/protocols_trend/")
+        assert r.status_code == 200
+        out = r.json().get("results", [])
+        assert len(out) == 1
+        assert out[0]["month"] == "2024-06"
+        assert out[0]["count"] == 2
+        assert all(x["count"] != 999 for x in out)

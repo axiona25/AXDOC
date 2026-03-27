@@ -1,4 +1,5 @@
 """Test task documenti: OCR, compressione, thumbnail (FASE 33B)."""
+import os
 import uuid
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -312,3 +313,245 @@ class TestVideoHelpers:
             from apps.documents.tasks import _generate_video_thumbnail
 
             _generate_video_thumbnail(ver)
+
+
+@pytest.mark.django_db
+class TestProcessDocumentTextExtractionEdgeCases:
+    def test_file_missing_on_disk(self, folder_user, tmp_path, settings):
+        folder, user = folder_user
+        settings.MEDIA_ROOT = str(tmp_path)
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="gone.pdf",
+            file_type="application/pdf",
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("gone.pdf", SimpleUploadedFile("gone.pdf", b"%PDF", content_type="application/pdf"), save=True)
+        os.remove(ver.file.path)
+        process_document_text_extraction(str(ver.id))
+        doc.refresh_from_db()
+        assert doc.ocr_status == "failed"
+        assert "disco" in (doc.ocr_error or "").lower()
+
+    def test_image_ocr_failure_branch(self, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="x.png",
+            file_type="image/png",
+            created_by=user,
+            is_current=True,
+        )
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), color="red").save(buf, format="PNG")
+        buf.seek(0)
+        ver.file.save("x.png", SimpleUploadedFile("x.png", buf.read(), content_type="image/png"), save=True)
+        with patch(
+            "apps.documents.ocr_service.OCRService.extract_text_from_file",
+            return_value={"success": False, "error": "no text"},
+        ):
+            process_document_text_extraction(str(ver.id))
+        doc.refresh_from_db()
+        assert doc.ocr_status == "failed"
+
+    def test_native_extract_raises_exception(self, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="n.txt",
+            file_type="text/plain",
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("n.txt", SimpleUploadedFile("n.txt", b"x", content_type="text/plain"), save=True)
+        with patch("apps.search.extractors.extract_text", side_effect=RuntimeError("boom")):
+            process_document_text_extraction(str(ver.id))
+        doc.refresh_from_db()
+        assert doc.ocr_status == "failed"
+
+    def test_pdf_short_selectable_text_sets_completed(self, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="x.pdf",
+            file_type="application/pdf",
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("x.pdf", SimpleUploadedFile("x.pdf", b"%PDF-1.4", content_type="application/pdf"), save=True)
+        with patch("apps.documents.ocr_service.OCRService.has_selectable_text", return_value=True), patch(
+            "apps.documents.ocr_service.OCRService.pdftotext_extract", return_value="short"
+        ):
+            process_document_text_extraction(str(ver.id))
+        doc.refresh_from_db()
+        assert doc.ocr_status == "completed"
+
+
+@pytest.mark.django_db
+class TestProcessUploadedFileBranches:
+    @patch("apps.documents.tasks.process_document_text_extraction.delay")
+    @patch("apps.documents.tasks._generate_video_thumbnail")
+    @patch("apps.documents.tasks._compress_video")
+    def test_video_mime_triggers_video_pipeline(self, mock_cv, mock_gt, mock_delay, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="v.mp4",
+            file_type="video/mp4",
+            file_size=100,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("v.mp4", SimpleUploadedFile("v.mp4", b"vid", content_type="video/mp4"), save=True)
+        process_uploaded_file(str(ver.id))
+        mock_cv.assert_called_once()
+        mock_gt.assert_called_once()
+        mock_delay.assert_called_once()
+
+    @patch("apps.documents.tasks.process_document_text_extraction.delay")
+    def test_gif_skips_image_compress_still_schedules_ocr(self, mock_delay, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="a.gif",
+            file_type="image/gif",
+            file_size=50,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("a.gif", SimpleUploadedFile("a.gif", b"GIF89a", content_type="image/gif"), save=True)
+        process_uploaded_file(str(ver.id))
+        mock_delay.assert_called_once()
+
+
+@pytest.mark.django_db
+class TestCompressImageThumbnailErrors:
+    def test_compress_image_exception_handled(self, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="big.png",
+            file_type="image/png",
+            file_size=10 * 1024 * 1024,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("big.png", SimpleUploadedFile("big.png", b"x", content_type="image/png"), save=True)
+        with patch("apps.documents.tasks.Image.open", side_effect=OSError("bad image")):
+            _compress_image(ver)
+
+    def test_generate_image_thumbnail_exception(self, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="x.png",
+            file_type="image/png",
+            file_size=200,
+            created_by=user,
+            is_current=True,
+        )
+        buf = BytesIO()
+        Image.new("RGB", (50, 50), color="blue").save(buf, format="PNG")
+        buf.seek(0)
+        ver.file.save("x.png", SimpleUploadedFile("x.png", buf.read(), content_type="image/png"), save=True)
+        ver.refresh_from_db()
+        with patch("apps.documents.tasks.Image.open", side_effect=OSError("thumb fail")):
+            _generate_image_thumbnail(ver)
+
+
+@pytest.mark.django_db
+class TestVideoCompressThumbnailBranches:
+    @patch("apps.documents.tasks.subprocess.run")
+    def test_compress_video_ffmpeg_fails(self, mock_run, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="v.mp4",
+            file_type="video/mp4",
+            file_size=500,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("v.mp4", SimpleUploadedFile("v.mp4", b"data" * 50, content_type="video/mp4"), save=True)
+        ver.refresh_from_db()
+        mock_run.return_value = MagicMock(returncode=1, stderr=b"ffmpeg err")
+        from apps.documents.tasks import _compress_video
+
+        _compress_video(ver)
+
+    @patch("apps.documents.tasks.subprocess.run", side_effect=TimeoutError("t"))
+    def test_compress_video_outer_exception(self, mock_run, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="v.mp4",
+            file_type="video/mp4",
+            file_size=200,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("v.mp4", SimpleUploadedFile("v.mp4", b"v" * 80, content_type="video/mp4"), save=True)
+        ver.refresh_from_db()
+        from apps.documents.tasks import _compress_video
+
+        _compress_video(ver)
+
+    @patch("apps.documents.tasks.subprocess.run")
+    def test_generate_video_thumbnail_ffmpeg_fails(self, mock_run, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="v.mp4",
+            file_type="video/mp4",
+            file_size=100,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("v.mp4", SimpleUploadedFile("v.mp4", b"vv", content_type="video/mp4"), save=True)
+        ver.refresh_from_db()
+        mock_run.return_value = MagicMock(returncode=1)
+        from apps.documents.tasks import _generate_video_thumbnail
+
+        _generate_video_thumbnail(ver)
+
+    @patch("apps.documents.tasks.subprocess.run", side_effect=RuntimeError("x"))
+    def test_generate_video_thumbnail_outer_exception(self, mock_run, folder_user):
+        folder, user = folder_user
+        doc = Document.objects.create(title="D", folder=folder, created_by=user, owner=user)
+        ver = DocumentVersion.objects.create(
+            document=doc,
+            version_number=1,
+            file_name="v.mp4",
+            file_type="video/mp4",
+            file_size=100,
+            created_by=user,
+            is_current=True,
+        )
+        ver.file.save("v.mp4", SimpleUploadedFile("v.mp4", b"vv", content_type="video/mp4"), save=True)
+        ver.refresh_from_db()
+        from apps.documents.tasks import _generate_video_thumbnail
+
+        _generate_video_thumbnail(ver)
