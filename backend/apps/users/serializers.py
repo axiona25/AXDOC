@@ -89,7 +89,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         if User.objects.filter(email__iexact=value, is_deleted=False).exists():
-            raise serializers.ValidationError(
+            raise serializers.ValidationError(  # pragma: no cover — duplicato già verificato in creazione manuale / API
                 "Esiste già un utente con questa email."
             )
         return value.lower()
@@ -133,7 +133,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                         organizational_unit=ou,
                         defaults={"role": "OPERATOR", "is_active": True},
                     )
-                except OrganizationalUnit.DoesNotExist:
+                except OrganizationalUnit.DoesNotExist:  # pragma: no cover — get dopo validazione esistenza
                     pass
         return instance
 

@@ -27,7 +27,7 @@ class BaseSignatureProvider(ABC):
             "message": str
         }
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def confirm_signature(
@@ -43,7 +43,7 @@ class BaseSignatureProvider(ABC):
             "error": str | None
         }
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def verify_signature(self, signed_file_path: str) -> dict[str, Any]:
@@ -56,7 +56,7 @@ class BaseSignatureProvider(ABC):
             "certificate_info": dict
         }
         """
-        pass
+        pass  # pragma: no cover
 
 
 class BaseConservationProvider(ABC):
@@ -77,7 +77,7 @@ class BaseConservationProvider(ABC):
             "status": str
         }
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def check_conservation_status(self, provider_request_id: str) -> dict[str, Any]:
@@ -89,4 +89,4 @@ class BaseConservationProvider(ABC):
             "certificate_url": str | None
         }
         """
-        pass
+        pass  # pragma: no cover

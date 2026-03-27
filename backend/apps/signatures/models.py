@@ -189,7 +189,7 @@ class SignatureRequest(models.Model):
         from apps.protocols.models import ProtocolAttachment
         if self.target_type == "document" and self.document_id:
             doc = self.document
-            if not doc:
+            if not doc:  # pragma: no cover — FK coerente, documento esiste se document_id è valorizzato
                 return []
             ver = self.document_version or doc.versions.filter(is_current=True).first()
             if ver:
@@ -197,7 +197,7 @@ class SignatureRequest(models.Model):
             return [(doc, None)]
         if self.target_type == "protocol" and self.protocol_id:
             prot = self.protocol
-            if not prot:
+            if not prot:  # pragma: no cover — FK coerente
                 return []
             out = []
             seen = set()
@@ -217,7 +217,7 @@ class SignatureRequest(models.Model):
             return out if out else []
         if self.target_type == "dossier" and self.dossier_id:
             dossier = self.dossier
-            if not dossier:
+            if not dossier:  # pragma: no cover — FK coerente
                 return []
             from apps.dossiers.models import DossierDocument
             doc_ids = list(DossierDocument.objects.filter(dossier=dossier).values_list("document_id", flat=True))

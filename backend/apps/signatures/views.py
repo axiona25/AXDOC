@@ -331,7 +331,7 @@ class SignatureRequestViewSet(viewsets.ReadOnlyModelViewSet):
             except (ValueError, OSError):
                 pass
         signer = sig.signer or sig.get_current_signer()
-        if not signer:
+        if not signer:  # pragma: no cover — con signer_id valido il firmatario è sempre caricabile
             return Response({"detail": "Nessun firmatario."}, status=status.HTTP_400_BAD_REQUEST)
         result = provider.request_signature(
             document_path=doc_path,

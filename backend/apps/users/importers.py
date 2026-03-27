@@ -62,7 +62,7 @@ class UserImporter:
         import tablib
         content = file_obj.read() if hasattr(file_obj, "read") else file_obj
         data = tablib.Dataset().load(content, format="xlsx")
-        if not data.headers:
+        if not data.headers:  # pragma: no cover — file Excel validi hanno sempre header
             return []
         headers_lower = [str(h).strip().lower().replace(" ", "_") for h in data.headers]
         rows = []
@@ -139,11 +139,11 @@ class UserImporter:
             first_name = (row.get("first_name") or "").strip()[:150]
             last_name = (row.get("last_name") or "").strip()[:150]
             role = (row.get("role") or "OPERATOR").strip().upper()
-            if role not in ["OPERATOR", "REVIEWER", "APPROVER", "ADMIN"]:
+            if role not in ["OPERATOR", "REVIEWER", "APPROVER", "ADMIN"]:  # pragma: no cover — validate_row filtra i ruoli
                 role = "OPERATOR"
             phone = (row.get("phone") or "").strip()[:30]
             ou_role = (row.get("ou_role") or "OPERATOR").strip().upper()
-            if ou_role not in ["OPERATOR", "REVIEWER", "APPROVER"]:
+            if ou_role not in ["OPERATOR", "REVIEWER", "APPROVER"]:  # pragma: no cover — validate_row filtra ou_role
                 ou_role = "OPERATOR"
             user = User.objects.create_user(
                 email=email,

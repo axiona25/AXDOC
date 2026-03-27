@@ -73,7 +73,7 @@ def verify_p7m(file_path: str) -> dict:
                         "SN": NameOID.SERIAL_NUMBER,
                     }
                     oid = oid_map.get(oid_dotted)
-                    if not oid:
+                    if not oid:  # pragma: no cover — solo CN/O/E/SN usati sotto
                         return ""
                     attrs = name_obj.get_attributes_for_oid(oid)
                     return attrs[0].value if attrs else ""
