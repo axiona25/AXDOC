@@ -144,6 +144,58 @@ class TestFetchNewEmails:
         assert fetch_new_emails(mail_account) == 0
 
     @patch("apps.mail.imap_client.imaplib.IMAP4_SSL")
+    def test_search_ok_but_no_uids_after_split(self, mock_ssl, mail_account):
+        """data[0] truthy ma split() vuoto → early return dopo il loop SEARCH."""
+        conn = MagicMock()
+        conn.login.return_value = ("OK", [])
+        conn.select.return_value = ("OK", [])
+
+        def uid(cmd, *args):
+            if cmd.upper() == "SEARCH":
+                return ("OK", [b"  "])
+            return ("BAD", [])
+
+        conn.uid.side_effect = uid
+        mock_ssl.return_value = conn
+        assert fetch_new_emails(mail_account) == 0
+
+    @patch("apps.mail.imap_client.imaplib.IMAP4_SSL")
+    def test_uid_range_search_when_last_fetch_numeric(self, mock_ssl, mail_account):
+        mail_account.last_fetch_uid = "5"
+        mail_account.save(update_fields=["last_fetch_uid"])
+        conn = MagicMock()
+        conn.login.return_value = ("OK", [])
+        conn.select.return_value = ("OK", [])
+        raw = _raw_simple_plain()
+
+        def uid(cmd, *args):
+            if cmd.upper() == "SEARCH":
+                return ("OK", [b"6"])
+            if cmd.upper() == "FETCH":
+                return ("OK", [(b"6 (RFC822 {100}", raw), b")"])
+            return ("BAD", [])
+
+        conn.uid.side_effect = uid
+        conn.logout.return_value = ("BYE", [])
+        mock_ssl.return_value = conn
+        assert fetch_new_emails(mail_account, max_messages=50) == 1
+
+    @patch("apps.mail.imap_client.imaplib.IMAP4_SSL")
+    def test_naive_date_header_triggers_make_aware(self, mock_ssl, mail_account):
+        raw = (
+            b"From: a@test.com\r\n"
+            b"To: b@test.com\r\n"
+            b"Subject: Naive date\r\n"
+            b"Date: Mon, 01 Jan 2025 10:00:00\r\n"
+            b"Content-Type: text/plain; charset=utf-8\r\n"
+            b"\r\n"
+            b"Hi\r\n"
+        )
+        conn = _make_conn_mock(raw)
+        mock_ssl.return_value = conn
+        assert fetch_new_emails(mail_account) == 1
+
+    @patch("apps.mail.imap_client.imaplib.IMAP4_SSL")
     def test_last_fetch_uid_invalid_falls_back_all(self, mock_ssl, mail_account):
         mail_account.last_fetch_uid = "not-a-number"
         mail_account.save(update_fields=["last_fetch_uid"])

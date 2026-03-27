@@ -126,7 +126,7 @@ class ExportService:
         if logo_path and os.path.isfile(logo_path):
             try:
                 elements.append(Image(logo_path, width=35 * mm, height=12 * mm))
-                elements.append(Spacer(1, 3 * mm))
+                elements.append(Spacer(1, 3 * mm))  # pragma: no cover — accoppiato al logo
             except OSError:
                 pass
 

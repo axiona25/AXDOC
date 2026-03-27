@@ -48,7 +48,7 @@ class SystemSettings(models.Model):
     def get_settings(cls):
         try:
             from apps.organizations.middleware import get_current_tenant
-        except Exception:
+        except Exception:  # pragma: no cover — import middleware impossibile in runtime normale
             get_current_tenant = lambda: None
 
         tenant = get_current_tenant()

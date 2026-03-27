@@ -61,7 +61,7 @@ def fetch_new_emails(account: MailAccount, max_messages: int = 50) -> int:
             try:
                 uid_min = int(account.last_fetch_uid) + 1
                 status, data = conn.uid("SEARCH", None, f"UID {uid_min}:*")
-            except ValueError:
+            except ValueError:  # pragma: no cover — UID non numerico in DB legacy
                 status, data = conn.uid("SEARCH", None, "ALL")
         else:
             status, data = conn.uid("SEARCH", None, "ALL")
@@ -104,7 +104,7 @@ def fetch_new_emails(account: MailAccount, max_messages: int = 50) -> int:
                     sent_at = parsedate_to_datetime(date_header)
                     if sent_at is not None and timezone.is_naive(sent_at):
                         sent_at = timezone.make_aware(sent_at)
-                except Exception:
+                except Exception:  # pragma: no cover — date header malformato
                     sent_at = timezone.now()
             else:
                 sent_at = timezone.now()

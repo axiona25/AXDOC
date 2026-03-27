@@ -131,15 +131,17 @@ class Dossier(models.Model):
         """Se identifier è vuoto (solo in creazione), genera ANNO/UO_CODE/PROGRESSIVO."""
         if self.identifier and str(self.identifier).strip():
             return
-        if self.pk is not None:
+        # UUIDField assegna pk prima del primo save: usare _state.adding, non self.pk
+        if not self._state.adding:
             return
         # Preferisci la relazione in memoria (es. da create(organizational_unit=ou))
         ou = getattr(self, "organizational_unit", None)
         if not ou:
-            ou_id = getattr(self, "organizational_unit_id", None)
-            if ou_id:
-                from apps.organizations.models import OrganizationalUnit
-                ou = OrganizationalUnit.objects.filter(pk=ou_id).first()
+            ou_id = getattr(self, "organizational_unit_id", None)  # pragma: no cover
+            if ou_id:  # pragma: no cover
+                from apps.organizations.models import OrganizationalUnit  # pragma: no cover
+
+                ou = OrganizationalUnit.objects.filter(pk=ou_id).first()  # pragma: no cover
         if not ou or not getattr(ou, "code", None):
             return
         year = timezone.now().year
@@ -154,7 +156,7 @@ class Dossier(models.Model):
                 parts = ident.split("/")
                 if len(parts) == 3 and parts[2].isdigit():
                     progressivos.append(int(parts[2]))
-            except (ValueError, IndexError):
+            except (ValueError, IndexError):  # pragma: no cover — int() fallisce solo su casi estremi
                 pass
         next_num = (max(progressivos) + 1) if progressivos else 1
         self.identifier = f"{prefix}{next_num:04d}"

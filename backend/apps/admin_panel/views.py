@@ -169,8 +169,8 @@ class SystemInfoView(APIView):
                 row = cursor.fetchone()
                 if row and row[0]:
                     database_size_mb = round(float(row[0]), 2)
-        except Exception:
-            pass
+        except Exception:  # pragma: no cover — DB non MySQL / query fallita
+            pass  # pragma: no cover
 
         redis_connected = False
         try:

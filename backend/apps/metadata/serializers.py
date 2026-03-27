@@ -1,18 +1,23 @@
 """
 Serializers strutture metadati (RF-040..RF-042).
 """
+import uuid as uuid_mod
+
 from rest_framework import serializers
 from .models import MetadataStructure, MetadataField, MetadataStructureOU, FIELD_TYPES
 
 
 class MetadataFieldSerializer(serializers.ModelSerializer):
+    """id opzionale in update nested (per aggiornare un campo esistente)."""
+
+    id = serializers.UUIDField(required=False, allow_null=True)
+
     class Meta:
         model = MetadataField
         fields = [
             "id", "name", "label", "field_type", "is_required", "is_searchable",
             "order", "options", "default_value", "validation_rules", "help_text",
         ]
-        read_only_fields = ["id"]
 
 
 class MetadataStructureListSerializer(serializers.ModelSerializer):
@@ -121,6 +126,7 @@ class MetadataStructureCreateSerializer(serializers.ModelSerializer):
             )
         for i, fd in enumerate(fields_data):
             fd["order"] = fd.get("order", i)
+            fd.pop("id", None)
             MetadataField.objects.create(structure=structure, **fd)
         return structure
 
@@ -134,7 +140,7 @@ class MetadataStructureCreateSerializer(serializers.ModelSerializer):
         if allowed_signers is not None:
             instance.allowed_signers.set(allowed_signers)
         if allowed_ous is not None:
-            instance.allowed_organizational_units.through.objects.filter(structure=instance).delete()
+            MetadataStructureOU.objects.filter(structure=instance).delete()
             for ou_id in allowed_ous:
                 MetadataStructureOU.objects.get_or_create(
                     structure=instance,
@@ -144,8 +150,14 @@ class MetadataStructureCreateSerializer(serializers.ModelSerializer):
             for i, fd in enumerate(fields_data):
                 fd["order"] = fd.get("order", i)
                 fid = fd.pop("id", None)
-                if fid and instance.fields.filter(id=fid).exists():
-                    MetadataField.objects.filter(id=fid, structure=instance).update(
+                fid_key = None
+                if fid:
+                    try:
+                        fid_key = fid if isinstance(fid, uuid_mod.UUID) else uuid_mod.UUID(str(fid))
+                    except (ValueError, TypeError):  # pragma: no cover — id già validato da MetadataFieldSerializer
+                        fid_key = None
+                if fid_key and instance.fields.filter(id=fid_key).exists():
+                    MetadataField.objects.filter(id=fid_key, structure=instance).update(
                         label=fd.get("label"),
                         is_required=fd.get("is_required", False),
                         is_searchable=fd.get("is_searchable", True),

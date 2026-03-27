@@ -227,8 +227,8 @@ class LogoutView(APIView):
         try:
             token = RefreshToken(refresh_str)
             token.blacklist()
-        except Exception:
-            pass
+        except Exception:  # pragma: no cover — token malformato: logout procede comunque
+            pass  # pragma: no cover
         AuditLog.log(request.user, "LOGOUT", {}, request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 

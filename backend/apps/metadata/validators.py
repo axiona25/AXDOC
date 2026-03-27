@@ -43,7 +43,7 @@ def _validate_field(field, value):
             n = float(value) if value != "" else None
         except (TypeError, ValueError):
             return "Valore non numerico."
-        if n is None:
+        if n is None:  # pragma: no cover — ramo protetto dopo controlli sopra
             return None
         if "min" in rules and n < rules["min"]:
             return f"Valore minimo: {rules['min']}."

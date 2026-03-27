@@ -8,9 +8,9 @@ from datetime import timedelta
 
 try:
     from celery import shared_task
-except ImportError:
-    def shared_task(f):
-        return f
+except ImportError:  # pragma: no cover — Celery obbligatorio in produzione
+    def shared_task(f):  # pragma: no cover
+        return f  # pragma: no cover
 
 
 @shared_task

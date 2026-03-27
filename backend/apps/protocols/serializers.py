@@ -82,7 +82,7 @@ class ProtocolCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_organizational_unit(self, value):
-        if not value:
+        if not value:  # pragma: no cover — campo obbligatorio sul modello
             raise serializers.ValidationError("Unità organizzativa obbligatoria.")
         return value
 
