@@ -18,6 +18,24 @@ _VALID_SEARCH_TYPES = frozenset({"all", "documents", "protocols", "dossiers", "c
 class SearchView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def _effective_tenant(self, request):
+        """
+        Tenant coerente con l'utente JWT/sessione.
+        Il TenantMiddleware gira prima dell'autenticazione DRF: request.tenant può essere
+        solo il tenant 'default' o dal claim JWT, mentre request.user.tenant_id è corretto
+        solo dopo la view. Per protocolli/fascicoli usare sempre il tenant dell'utente.
+        """
+        from apps.organizations.models import Tenant
+
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            uid = getattr(user, "tenant_id", None)
+            if uid:
+                t = Tenant.objects.filter(id=uid, is_active=True).first()
+                if t:
+                    return t
+        return getattr(request, "tenant", None)
+
     def get(self, request):
         q = (request.query_params.get("q") or "").strip()
         search_type = request.query_params.get("type", "all")
@@ -28,8 +46,15 @@ class SearchView(APIView):
         date_from = request.query_params.get("date_from")
         date_to = request.query_params.get("date_to")
         order_by = request.query_params.get("order_by", "-updated_at")
-        page_size = min(int(request.query_params.get("page_size", 20)), 100)
-        page = int(request.query_params.get("page", 1))
+        try:
+            page_size_raw = int(request.query_params.get("page_size", 20))
+        except (TypeError, ValueError):
+            page_size_raw = 20
+        page_size = max(1, min(page_size_raw, 100))
+        try:
+            page = int(request.query_params.get("page", 1))
+        except (TypeError, ValueError):
+            page = 1
         if page < 1:
             page = 1
 
@@ -227,17 +252,23 @@ class SearchView(APIView):
 
     def _protocol_queryset(self, request):
         from apps.protocols.models import Protocol
+        from apps.users.permissions import get_user_ou_ids
 
         qs = Protocol.objects.all()
         if getattr(request.user, "is_superuser", False):
             return qs
-        tenant = getattr(request, "tenant", None)
+        tenant = self._effective_tenant(request)
         if tenant and hasattr(Protocol, "tenant"):
             if getattr(tenant, "slug", None) == "default":
                 qs = qs.filter(Q(tenant=tenant) | Q(tenant__isnull=True))
             else:
                 qs = qs.filter(tenant=tenant)
-        return qs
+        if getattr(request.user, "role", None) == "ADMIN":
+            return qs
+        ou_ids = get_user_ou_ids(request.user)
+        if not ou_ids:
+            return qs.none()
+        return qs.filter(organizational_unit_id__in=ou_ids)
 
     def _search_protocols_slice(self, request, q, limit, offset):
         from apps.protocols.models import ProtocolAttachment
@@ -292,17 +323,33 @@ class SearchView(APIView):
 
     def _dossier_queryset(self, request):
         from apps.dossiers.models import Dossier
+        from apps.users.permissions import get_user_ou_ids
 
         qs = Dossier.objects.filter(is_deleted=False)
         if getattr(request.user, "is_superuser", False):
             return qs
-        tenant = getattr(request, "tenant", None)
+        tenant = self._effective_tenant(request)
         if tenant and hasattr(Dossier, "tenant"):
             if getattr(tenant, "slug", None) == "default":
                 qs = qs.filter(Q(tenant=tenant) | Q(tenant__isnull=True))
             else:
                 qs = qs.filter(tenant=tenant)
-        return qs
+        if getattr(request.user, "role", None) == "ADMIN":
+            return qs
+        user = request.user
+        user_ou_ids = get_user_ou_ids(user)
+        if not user_ou_ids:
+            return qs.none()
+        return qs.filter(
+            Q(responsible=user)
+            | Q(created_by=user)
+            | Q(user_permissions__user=user, user_permissions__can_read=True)
+            | Q(
+                ou_permissions__organizational_unit_id__in=user_ou_ids,
+                ou_permissions__can_read=True,
+            )
+            | Q(organizational_unit_id__in=user_ou_ids)
+        ).distinct()
 
     def _search_dossiers_slice(self, request, q, limit, offset):
         from apps.dossiers.models import DossierDocument, DossierEmail
@@ -375,11 +422,14 @@ class SearchView(APIView):
         if not q:  # pragma: no cover — _response_single_contacts esclude q vuoto
             return [], 0
         qs = self._contact_queryset(request)
-        qs = qs.filter(
+        q_filter = (
             Q(first_name__icontains=q)
             | Q(last_name__icontains=q)
             | Q(company_name__icontains=q)
         )
+        if "@" in q:
+            q_filter |= Q(email=q) | Q(pec=q)
+        qs = qs.filter(q_filter)
         count = qs.count()
         items = list(qs.order_by("last_name", "first_name")[offset : offset + limit])
         results = []

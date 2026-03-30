@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 from apps.contacts.models import Contact
 from apps.documents.models import Document, Folder
 from apps.dossiers.models import Dossier, DossierEmail
-from apps.organizations.models import OrganizationalUnit, Tenant
+from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership, Tenant
 from apps.protocols.models import Protocol
 
 User = get_user_model()
@@ -45,6 +45,9 @@ def internal_user(db, tenant, ou):
     )
     u.tenant_id = tenant.id
     u.save(update_fields=["tenant_id"])
+    OrganizationalUnitMembership.objects.create(
+        user=u, organizational_unit=ou, role="OPERATOR"
+    )
     return u
 
 

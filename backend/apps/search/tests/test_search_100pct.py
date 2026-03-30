@@ -541,6 +541,9 @@ class TestSearchView100:
         nd_ou = OrganizationalUnit.objects.create(name="ND OU", code="N1", tenant=nd)
         operator_user.tenant_id = nd.id
         operator_user.save(update_fields=["tenant_id"])
+        OrganizationalUnitMembership.objects.create(
+            user=operator_user, organizational_unit=nd_ou, role="OPERATOR"
+        )
         Protocol.objects.create(
             tenant=nd,
             protocol_id="ND/P/1",
