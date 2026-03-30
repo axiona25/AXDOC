@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './store/themeStore'
 import './index.css'
 
+document.documentElement.classList.remove('dark')
+
 const queryClient = new QueryClient()
 
 async function bootstrap() {

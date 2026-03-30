@@ -4,30 +4,29 @@ import { useThemeStore } from '../store/themeStore'
 
 describe('themeStore', () => {
   beforeEach(() => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {})
     document.documentElement.classList.remove('dark')
   })
 
-  it('setMode dark updates state and class', () => {
+  it('setMode non applica mai la classe dark al documento', () => {
     act(() => {
       useThemeStore.getState().setMode('dark')
     })
-    expect(useThemeStore.getState().mode).toBe('dark')
-    expect(useThemeStore.getState().effectiveTheme).toBe('dark')
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(useThemeStore.getState().mode).toBe('light')
+    expect(useThemeStore.getState().effectiveTheme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
-  it('setMode system uses matchMedia result', () => {
+  it('setMode system mantiene tema effettivo chiaro', () => {
     act(() => {
       useThemeStore.getState().setMode('system')
     })
-    expect(['light', 'dark']).toContain(useThemeStore.getState().effectiveTheme)
+    expect(useThemeStore.getState().effectiveTheme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
-  it('setMode light removes dark class', () => {
-    act(() => {
-      useThemeStore.getState().setMode('dark')
-    })
+  it('setMode dopo dark rimuove eventuale classe dark', () => {
+    document.documentElement.classList.add('dark')
     act(() => {
       useThemeStore.getState().setMode('light')
     })

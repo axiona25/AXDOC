@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+/** Mantenuto per compatibilità con import esistenti; l'app è solo tema chiaro. */
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 interface ThemeStore {
@@ -8,60 +9,30 @@ interface ThemeStore {
   setMode: (mode: ThemeMode) => void
 }
 
-function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light'
+function ensureLightDocument() {
+  if (typeof document === 'undefined') return
+  document.documentElement.classList.remove('dark')
+}
+
+if (typeof window !== 'undefined') {
   try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  } catch {
-    return 'light'
-  }
-}
-
-function getStoredMode(): ThemeMode {
-  if (typeof window !== 'undefined') {
-    const v = localStorage.getItem('axdoc-theme') as ThemeMode | null
-    if (v === 'light' || v === 'dark' || v === 'system') return v
-  }
-  return 'system'
-}
-
-function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
-  if (mode === 'system') return getSystemTheme()
-  return mode
-}
-
-function applyTheme(theme: 'light' | 'dark') {
-  const root = document.documentElement
-  if (theme === 'dark') root.classList.add('dark')
-  else root.classList.remove('dark')
-}
-
-const initialMode = getStoredMode()
-const initialEffective = resolveTheme(initialMode)
-applyTheme(initialEffective)
-
-export const useThemeStore = create<ThemeStore>((set) => ({
-  mode: initialMode,
-  effectiveTheme: initialEffective,
-  setMode: (mode) => {
-    localStorage.setItem('axdoc-theme', mode)
-    const effective = resolveTheme(mode)
-    applyTheme(effective)
-    set({ mode, effectiveTheme: effective })
-  },
-}))
-
-if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-  try {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      const state = useThemeStore.getState()
-      if (state.mode === 'system') {
-        const effective = getSystemTheme()
-        applyTheme(effective)
-        useThemeStore.setState({ effectiveTheme: effective })
-      }
-    })
+    localStorage.removeItem('axdoc-theme')
   } catch {
     /* ignore */
   }
+  ensureLightDocument()
 }
+
+export const useThemeStore = create<ThemeStore>((set) => ({
+  mode: 'light',
+  effectiveTheme: 'light',
+  setMode: () => {
+    ensureLightDocument()
+    try {
+      localStorage.removeItem('axdoc-theme')
+    } catch {
+      /* ignore */
+    }
+    set({ mode: 'light', effectiveTheme: 'light' })
+  },
+}))

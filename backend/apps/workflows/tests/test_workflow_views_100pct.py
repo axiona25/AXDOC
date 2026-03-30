@@ -407,7 +407,7 @@ class TestStepActionAndCancel:
         document.refresh_from_db()
         assert document.status == Document.STATUS_APPROVED
 
-    def test_skip_optional_step_without_assignees(self, api_client, admin, reviewer, document):
+    def test_skip_optional_step_without_assignees(self, api_client, admin, reviewer, approver, document):
         api_client.force_authenticate(user=admin)
         tpl = WorkflowTemplate.objects.create(name="Skip", created_by=admin, is_published=True)
         WorkflowStep.objects.create(

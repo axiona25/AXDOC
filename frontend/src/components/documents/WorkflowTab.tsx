@@ -9,6 +9,7 @@ import {
   type WorkflowTemplate,
 } from '../../services/workflowService'
 import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
 import { announce } from '../common/ScreenReaderAnnouncer'
 
 const ACTION_LABELS: Record<string, { label: string; color: string; icon: string }> = {
@@ -75,8 +76,20 @@ export function WorkflowTab({ documentId }: WorkflowTabProps) {
       setShowStartModal(false)
       setSelectedTemplateId('')
       loadData()
-    } catch (e: any) {
-      alert(e?.response?.data?.detail || 'Errore avvio workflow.')
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : detail != null
+            ? JSON.stringify(detail)
+            : 'Errore avvio workflow.'
+      useToastStore.getState().addToast({
+        title: 'Avvio workflow',
+        message: msg,
+        notification_type: 'workflow_start_error',
+        link_url: '',
+      })
     } finally {
       setStarting(false)
     }

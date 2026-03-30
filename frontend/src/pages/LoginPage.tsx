@@ -8,8 +8,6 @@ import { login } from '../services/authService'
 import type { LoginResponse } from '../types/auth'
 import { MFAVerifyModal } from '../components/auth/MFAVerifyModal'
 import { SSOButtons } from '../components/auth/SSOButtons'
-import { ThemeToggle } from '../components/layout/ThemeToggle'
-
 const loginSchema = z.object({
   email: z.string().email('Email non valida'),
   password: z.string().min(6, 'Minimo 6 caratteri'),
@@ -66,9 +64,6 @@ export function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-slate-100 p-4 dark:bg-slate-900">
-      <div className="absolute right-4 top-4">
-        <ThemeToggle />
-      </div>
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-md dark:border-slate-700 dark:bg-slate-800">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">AXDOC</h1>
         <p className="mb-6 text-slate-600 dark:text-slate-300">Gestione Documentale</p>

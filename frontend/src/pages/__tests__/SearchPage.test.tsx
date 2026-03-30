@@ -10,7 +10,7 @@ vi.mock('../../services/searchService', () => ({
 describe('SearchPage', () => {
   it('shows order by pertinenza', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/search?type=documents']}>
         <SearchPage />
       </MemoryRouter>,
     )
@@ -24,6 +24,6 @@ describe('SearchPage', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: /Ricerca/i })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Cerca documenti/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/^Cerca\.\.\.$/i)).toBeInTheDocument()
   })
 })

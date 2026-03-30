@@ -136,6 +136,81 @@ def test_get_assignees_document_ou(document_with_folder):
 
 
 @pytest.mark.django_db
+def test_get_assignees_ou_role_no_members_with_role_uses_fallback_user(document_with_folder):
+    admin, reviewer, document = document_with_folder
+    from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership
+
+    ou = OrganizationalUnit.objects.create(name="UO FB", code="UO-FB-FALL", created_by=admin)
+    OrganizationalUnitMembership.objects.create(
+        user=reviewer,
+        organizational_unit=ou,
+        role="OPERATOR",
+        is_active=True,
+    )
+    tpl = WorkflowTemplate.objects.create(name="T-FB", is_published=True)
+    step = WorkflowStep.objects.create(
+        template=tpl,
+        name="OU fallback",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=ou,
+        assignee_ou_role="REVIEWER",
+        assignee_user=admin,
+    )
+    users = WorkflowService.get_assignees(step, document)
+    assert users == [admin]
+
+
+@pytest.mark.django_db
+def test_get_assignees_ou_role_no_match_returns_empty(document_with_folder):
+    admin, reviewer, document = document_with_folder
+    from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership
+
+    ou = OrganizationalUnit.objects.create(name="UO Empty", code="UO-EMPTY-NO-FB", created_by=admin)
+    OrganizationalUnitMembership.objects.create(
+        user=reviewer,
+        organizational_unit=ou,
+        role="OPERATOR",
+        is_active=True,
+    )
+    tpl = WorkflowTemplate.objects.create(name="T-EMPTY", is_published=True)
+    step = WorkflowStep.objects.create(
+        template=tpl,
+        name="OU no match",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=ou,
+        assignee_ou_role="REVIEWER",
+    )
+    assert WorkflowService.get_assignees(step, document) == []
+
+
+@pytest.mark.django_db
+def test_get_assignees_ou_role_case_insensitive(document_with_folder):
+    admin, reviewer, document = document_with_folder
+    from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership
+
+    ou = OrganizationalUnit.objects.create(name="UO CI", code="UO-CI-SVC", created_by=admin)
+    OrganizationalUnitMembership.objects.create(
+        user=reviewer,
+        organizational_unit=ou,
+        role="REVIEWER",
+        is_active=True,
+    )
+    tpl = WorkflowTemplate.objects.create(name="T-CI", is_published=True)
+    step = WorkflowStep.objects.create(
+        template=tpl,
+        name="OU CI",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=ou,
+        assignee_ou_role="reviewer",
+    )
+    users = WorkflowService.get_assignees(step, document)
+    assert reviewer in users
+
+
+@pytest.mark.django_db
 def test_get_assignees_ou_role_without_ou_returns_empty(document_with_folder):
     _admin, _reviewer, document = document_with_folder
     tpl = WorkflowTemplate.objects.create(name="T-OU-EMPTY", is_published=True)

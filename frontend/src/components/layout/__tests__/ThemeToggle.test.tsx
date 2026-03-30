@@ -6,15 +6,16 @@ import { useThemeStore } from '../../../store/themeStore'
 
 describe('ThemeToggle', () => {
   beforeEach(() => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {})
     useThemeStore.setState({ mode: 'light', effectiveTheme: 'light' })
   })
 
-  it('opens menu and sets dark mode', async () => {
+  it('apre il menu; la scelta tema scuro non applica dark al documento', async () => {
     const user = userEvent.setup()
     render(<ThemeToggle />)
     await user.click(screen.getByRole('button', { name: /Tema chiaro|Tema scuro|Tema di sistema/i }))
     await user.click(screen.getByRole('button', { name: /Tema scuro/i }))
-    expect(useThemeStore.getState().mode).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(useThemeStore.getState().effectiveTheme).toBe('light')
   })
 })

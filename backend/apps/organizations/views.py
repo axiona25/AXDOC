@@ -122,12 +122,13 @@ class OrganizationalUnitViewSet(TenantFilterMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def members(self, request, pk=None):
-        """GET /api/organizations/{id}/members/ — lista membri."""
+        """GET /api/organizations/{id}/members/ — lista membri. Query opzionale: ?role=REVIEWER (case-insensitive)."""
         ou = self.get_object()
-        serializer = OrganizationalUnitMembershipSerializer(
-            ou.memberships.filter(is_active=True).select_related("user"),
-            many=True,
-        )
+        qs = ou.memberships.filter(is_active=True).select_related("user")
+        role_param = request.query_params.get("role")
+        if role_param and role_param.strip():
+            qs = qs.filter(role__iexact=role_param.strip())
+        serializer = OrganizationalUnitMembershipSerializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], url_path="add_member")

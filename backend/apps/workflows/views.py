@@ -240,12 +240,29 @@ class WorkflowInstanceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
             )
 
         # Verifica che il template abbia almeno uno step
-        steps = template.steps.all().order_by("order")
-        if not steps.exists():
+        steps = list(
+            template.steps.all()
+            .order_by("order")
+            .select_related("assignee_ou", "assignee_user")
+        )
+        if not steps:
             return Response(
                 {"detail": "Il template non ha step definiti."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        for step in steps:
+            assignees = WorkflowService.get_assignees(step, document)
+            if not assignees and step.is_required:
+                return Response(
+                    {
+                        "detail": (
+                            f"Nessun assegnatario trovato per lo step '{step.name}'. "
+                            "Verifica i ruoli nella UO."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # Crea l'istanza
         tenant = getattr(request, "tenant", None)
@@ -253,7 +270,7 @@ class WorkflowInstanceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
             template=template,
             document=document,
             started_by=request.user,
-            current_step_order=steps.first().order,
+            current_step_order=steps[0].order,
             tenant=tenant,
         )
 

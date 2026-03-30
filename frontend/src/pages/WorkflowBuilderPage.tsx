@@ -15,7 +15,8 @@ import {
   type WorkflowStep,
 } from '../services/workflowService'
 import { getUsers } from '../services/userService'
-import { getOrganizationalUnits } from '../services/organizationService'
+import { getOrganizationalUnits, getOUMembers } from '../services/organizationService'
+import type { OUMember } from '../services/organizationService'
 import type { OrganizationalUnit } from '../services/organizationService'
 
 const ACTION_LABELS: Record<string, { label: string; color: string; icon: string }> = {
@@ -64,6 +65,8 @@ export function WorkflowBuilderPage() {
   // Risorse
   const [allUsers, setAllUsers] = useState<{ id: string; email: string; first_name?: string; last_name?: string }[]>([])
   const [allOUs, setAllOUs] = useState<OrganizationalUnit[]>([])
+  const [ouRolePreview, setOuRolePreview] = useState<OUMember[] | null>(null)
+  const [ouRolePreviewLoading, setOuRolePreviewLoading] = useState(false)
   const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
@@ -71,6 +74,32 @@ export function WorkflowBuilderPage() {
     getUsers({}).then((r) => setAllUsers(r.results ?? [])).catch(() => {})
     getOrganizationalUnits({}).then((r) => setAllOUs(r.results ?? [])).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (stepAssigneeType !== 'ou_role' || !stepModalOpen) {
+      setOuRolePreview(null)
+      return
+    }
+    if (!stepAssigneeOU || !stepAssigneeOURole) {
+      setOuRolePreview(null)
+      return
+    }
+    let cancelled = false
+    setOuRolePreviewLoading(true)
+    getOUMembers(stepAssigneeOU, { role: stepAssigneeOURole })
+      .then((rows) => {
+        if (!cancelled) setOuRolePreview(rows ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setOuRolePreview(null)
+      })
+      .finally(() => {
+        if (!cancelled) setOuRolePreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [stepAssigneeType, stepAssigneeOU, stepAssigneeOURole, stepModalOpen])
 
   const loadTemplates = () => {
     setLoading(true)
@@ -504,6 +533,32 @@ export function WorkflowBuilderPage() {
                       <option value="APPROVER">Approvatore</option>
                     </select>
                   </div>
+                  {stepAssigneeOU && stepAssigneeOURole && (
+                    <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+                      {ouRolePreviewLoading && <p className="text-slate-500">Verifica membri…</p>}
+                      {!ouRolePreviewLoading && ouRolePreview && ouRolePreview.length === 0 && (
+                        <p className="font-medium text-red-700">
+                          Nessun utente con ruolo {stepAssigneeOURole} nella UO{' '}
+                          {allOUs.find((o) => o.id === stepAssigneeOU)?.name ?? stepAssigneeOU}
+                        </p>
+                      )}
+                      {!ouRolePreviewLoading && ouRolePreview && ouRolePreview.length > 0 && (
+                        <>
+                          <p className="mb-2 text-slate-600">
+                            {ouRolePreview.length} utente{ouRolePreview.length === 1 ? '' : 'i'} con ruolo{' '}
+                            {stepAssigneeOURole} in questa UO:
+                          </p>
+                          <ul className="max-h-40 list-inside list-disc space-y-0.5 overflow-y-auto text-slate-800">
+                            {ouRolePreview.map((m) => (
+                              <li key={m.id}>
+                                {m.user_name || m.user_email} ({m.user_email})
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
               <div>

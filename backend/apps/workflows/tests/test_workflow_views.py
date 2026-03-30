@@ -50,7 +50,8 @@ def approver_user(db):
 
 
 @pytest.fixture
-def workflow_template(db, admin_user):
+def workflow_template(db, admin_user, reviewer_user, approver_user):
+    # reviewer_user e approver_user: necessari perché gli step usano REVIEWER / APPROVER
     tpl = WorkflowTemplate.objects.create(
         name="Approvazione Test API",
         created_by=admin_user,
@@ -269,3 +270,75 @@ def test_workflow_template_crud(api_client, admin_user):
     )
     assert resp3.status_code == 200
     assert resp3.data.get("name") == "Template Aggiornato"
+
+
+@pytest.mark.django_db
+def test_start_workflow_required_step_no_assignees_returns_400(api_client, admin_user, document):
+    from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership
+
+    ou = OrganizationalUnit.objects.create(name="UO No Rev", code="UO-NOREV-WFV", created_by=admin_user)
+    op = User.objects.create_user(
+        email="op-only-wfv@test.com",
+        password="Op123456!",
+        role="OPERATOR",
+    )
+    OrganizationalUnitMembership.objects.create(
+        user=op,
+        organizational_unit=ou,
+        role="OPERATOR",
+        is_active=True,
+    )
+    tpl = WorkflowTemplate.objects.create(name="T-Bad OU", is_published=True)
+    WorkflowStep.objects.create(
+        template=tpl,
+        name="Step riv",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=ou,
+        assignee_ou_role="REVIEWER",
+        is_required=True,
+    )
+    api_client.force_authenticate(user=admin_user)
+    r = api_client.post(
+        "/api/workflows/instances/",
+        {"document": str(document.id), "template": str(tpl.id)},
+        format="json",
+    )
+    assert r.status_code == 400
+    assert "Nessun assegnatario" in (r.data.get("detail") or "")
+
+
+@pytest.mark.django_db
+def test_start_workflow_ou_role_with_fallback_assignee_returns_201(api_client, admin_user, document):
+    from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership
+
+    ou = OrganizationalUnit.objects.create(name="UO FB", code="UO-FB-WFV", created_by=admin_user)
+    op = User.objects.create_user(
+        email="op-fb-wfv@test.com",
+        password="Op123456!",
+        role="OPERATOR",
+    )
+    OrganizationalUnitMembership.objects.create(
+        user=op,
+        organizational_unit=ou,
+        role="OPERATOR",
+        is_active=True,
+    )
+    tpl = WorkflowTemplate.objects.create(name="T-FB OK", is_published=True)
+    WorkflowStep.objects.create(
+        template=tpl,
+        name="Step fb",
+        order=1,
+        assignee_type="ou_role",
+        assignee_ou=ou,
+        assignee_ou_role="REVIEWER",
+        assignee_user=admin_user,
+        is_required=True,
+    )
+    api_client.force_authenticate(user=admin_user)
+    r = api_client.post(
+        "/api/workflows/instances/",
+        {"document": str(document.id), "template": str(tpl.id)},
+        format="json",
+    )
+    assert r.status_code == 201, r.data

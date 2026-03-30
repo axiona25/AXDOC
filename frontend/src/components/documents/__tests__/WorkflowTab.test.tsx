@@ -20,6 +20,13 @@ vi.mock('../../common/ScreenReaderAnnouncer', () => ({
   announce: vi.fn(),
 }))
 
+const mockAddToast = vi.fn()
+vi.mock('../../../store/toastStore', () => ({
+  useToastStore: Object.assign(vi.fn(), {
+    getState: () => ({ addToast: mockAddToast }),
+  }),
+}))
+
 describe('WorkflowTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()

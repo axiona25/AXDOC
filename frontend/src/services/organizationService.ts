@@ -52,8 +52,8 @@ export function getOrganizationalUnit(id: string): Promise<OrganizationalUnit> {
   return api.get(`/api/organizations/${id}/`).then((r) => r.data)
 }
 
-export function getOUMembers(ouId: string): Promise<OUMember[]> {
-  return api.get(`/api/organizations/${ouId}/members/`).then((r) => r.data)
+export function getOUMembers(ouId: string, params?: { role?: string }): Promise<OUMember[]> {
+  return api.get(`/api/organizations/${ouId}/members/`, { params }).then((r) => r.data)
 }
 
 export function createOrganizationalUnit(data: {

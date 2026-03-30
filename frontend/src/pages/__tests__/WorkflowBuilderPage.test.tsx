@@ -21,6 +21,7 @@ vi.mock('../../services/userService', () => ({
 
 vi.mock('../../services/organizationService', () => ({
   getOrganizationalUnits: vi.fn().mockResolvedValue({ results: [] }),
+  getOUMembers: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('../../store/authStore', () => ({

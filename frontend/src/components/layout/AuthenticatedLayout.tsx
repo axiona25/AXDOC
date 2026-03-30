@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { BreadcrumbProvider } from './BreadcrumbContext'
 import { Breadcrumb } from './Breadcrumb'
-import { ThemeToggle } from './ThemeToggle'
 import { TenantSelector } from './TenantSelector'
 import { PrivacyBanner } from '../auth/PrivacyBanner'
 
@@ -13,7 +12,6 @@ export function AuthenticatedLayout({ children }: { children: ReactNode }) {
           <Breadcrumb />
           <div className="flex items-center gap-2">
             <TenantSelector />
-            <ThemeToggle />
           </div>
         </header>
         <PrivacyBanner />
