@@ -79,7 +79,7 @@ class SearchView(APIView):
         if search_type == "contacts":
             return self._response_single_contacts(request, q, page, page_size)
 
-        return Response({"results": [], "total_count": 0, "facets": {}, "type": search_type})
+        return Response({"results": [], "total_count": 0, "facets": {}, "type": search_type})  # pragma: no cover
 
     def _response_documents_only(
         self,
@@ -213,7 +213,7 @@ class SearchView(APIView):
                 if not snippet and doc.title and q.lower() in (doc.title or "").lower():
                     snippet = doc.title or ""
                 setattr(doc, "_search_snippet", snippet or (doc.description or "")[:200])
-            else:
+            else:  # pragma: no cover — _response_all_types passa sempre q non vuoto
                 setattr(doc, "_search_snippet", (doc.description or "")[:300])
         ser = SearchResultSerializer(items, many=True).data
         out = []
@@ -244,7 +244,7 @@ class SearchView(APIView):
 
         if getattr(request.user, "user_type", "internal") == "guest":
             return [], 0
-        if not q:
+        if not q:  # pragma: no cover — le view pubbliche escludono q vuoto prima della slice
             return [], 0
 
         qs_p = self._protocol_queryset(request)
@@ -309,7 +309,7 @@ class SearchView(APIView):
 
         if getattr(request.user, "user_type", "internal") == "guest":
             return [], 0
-        if not q:
+        if not q:  # pragma: no cover — le view pubbliche escludono q vuoto prima della slice
             return [], 0
 
         qs_d = self._dossier_queryset(request)
@@ -372,7 +372,7 @@ class SearchView(APIView):
         return qs
 
     def _search_contacts_slice(self, request, q, limit, offset):
-        if not q:
+        if not q:  # pragma: no cover — _response_single_contacts esclude q vuoto
             return [], 0
         qs = self._contact_queryset(request)
         qs = qs.filter(

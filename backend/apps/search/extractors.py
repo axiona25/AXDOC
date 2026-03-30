@@ -77,7 +77,7 @@ def extract_text(file_path, mime_type=None):
                         if hasattr(shape, "text") and shape.text:
                             parts.append(shape.text)
                 return "\n".join(parts)
-            except ImportError:
+            except ImportError:  # pragma: no cover — python-pptx è dipendenza del progetto
                 return ""
         if "message" in mime_type or lower_path.endswith(".eml"):
             with open(file_path, "rb") as f:
