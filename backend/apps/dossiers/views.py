@@ -2,7 +2,7 @@
 API Fascicoli: CRUD, archiviazione, documenti e protocolli (RF-064..RF-069, FASE 22).
 """
 import hashlib
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
@@ -51,6 +51,13 @@ def _dossier_export_queryset(view, request):
         qs = qs.filter(organizational_unit_id=ou_id)
     if status_param in ("open", "closed", "archived"):
         qs = qs.filter(status=status_param)
+    search = (request.query_params.get("search") or "").strip()
+    if search:
+        qs = qs.filter(
+            Q(title__icontains=search)
+            | Q(identifier__icontains=search)
+            | Q(description__icontains=search)
+        )
     return qs.order_by("-updated_at")
 
 
@@ -115,21 +122,24 @@ class DossierViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         if filter_param == "all":
             if getattr(self.request.user, "role", None) != "ADMIN":
                 qs = qs.none()
-            return qs
-        if filter_param == "mine" or not filter_param:
-            if getattr(self.request.user, "role", None) == "ADMIN":
-                return qs
-            user = self.request.user
-            from django.db.models import Q
-
-            user_ou_ids = get_user_ou_ids(user)
+        elif filter_param == "mine" or not filter_param:
+            if getattr(self.request.user, "role", None) != "ADMIN":
+                user = self.request.user
+                user_ou_ids = get_user_ou_ids(user)
+                qs = qs.filter(
+                    Q(responsible=user)
+                    | Q(created_by=user)
+                    | Q(user_permissions__user=user, user_permissions__can_read=True)
+                    | Q(ou_permissions__organizational_unit_id__in=user_ou_ids, ou_permissions__can_read=True)
+                    | Q(organizational_unit_id__in=user_ou_ids)
+                ).distinct()
+        search = (self.request.query_params.get("search") or "").strip()
+        if search:
             qs = qs.filter(
-                Q(responsible=user)
-                | Q(created_by=user)
-                | Q(user_permissions__user=user, user_permissions__can_read=True)
-                | Q(ou_permissions__organizational_unit_id__in=user_ou_ids, ou_permissions__can_read=True)
-                | Q(organizational_unit_id__in=user_ou_ids)
-            ).distinct()
+                Q(title__icontains=search)
+                | Q(identifier__icontains=search)
+                | Q(description__icontains=search)
+            )
         return qs
 
     def get_serializer_class(self):

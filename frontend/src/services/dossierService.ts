@@ -93,6 +93,7 @@ export interface DossiersParams {
   page?: number
   responsible_id?: string
   ou_id?: string
+  search?: string
 }
 
 export interface DossiersResponse {

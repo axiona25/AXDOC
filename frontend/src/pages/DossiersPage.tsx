@@ -28,6 +28,8 @@ export function DossiersPage() {
 
   const responsibleIdQ = searchParams.get('responsible_id') ?? ''
   const ouIdQ = searchParams.get('ou_id') ?? ''
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const userOptions = useMemo(
     () =>
@@ -54,13 +56,25 @@ export function DossiersPage() {
       .catch(() => setOuOptions([]))
   }, [])
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
   const load = useCallback(() => {
     setLoading(true)
-    const params: { filter?: 'mine' | 'all'; status?: string; responsible_id?: string; ou_id?: string } = {}
+    const params: {
+      filter?: 'mine' | 'all'
+      status?: string
+      responsible_id?: string
+      ou_id?: string
+      search?: string
+    } = {}
     if (activeTab === 'all') params.filter = 'all'
     else if (activeTab === 'archived') params.status = 'archived'
     if (responsibleIdQ) params.responsible_id = responsibleIdQ
     if (ouIdQ) params.ou_id = ouIdQ
+    if (debouncedSearch) params.search = debouncedSearch
     getDossiers(params)
       .then((res) => {
         setDossiers(res.results || [])
@@ -81,7 +95,7 @@ export function DossiersPage() {
       })
       .catch(() => setDossiers([]))
       .finally(() => setLoading(false))
-  }, [activeTab, responsibleIdQ, ouIdQ])
+  }, [activeTab, responsibleIdQ, ouIdQ, debouncedSearch])
 
   useEffect(() => {
     load()
@@ -124,6 +138,7 @@ export function DossiersPage() {
     if (activeTab === 'archived') p.status = 'archived'
     if (responsibleIdQ) p.responsible_id = responsibleIdQ
     if (ouIdQ) p.ou_id = ouIdQ
+    if (debouncedSearch) p.search = debouncedSearch
     return p
   }
 
@@ -143,6 +158,19 @@ export function DossiersPage() {
         </button>
       </div>
       <div className="border-b border-slate-100 px-4 py-2 dark:border-slate-700">
+        <div className="mb-3">
+          <label htmlFor="dossier-search" className="sr-only">
+            Cerca fascicoli
+          </label>
+          <input
+            id="dossier-search"
+            type="search"
+            placeholder="Cerca fascicoli..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full max-w-md rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400"
+          />
+        </div>
         <FilterPanel fields={filterFields} onApply={() => load()} onReset={() => load()} />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">

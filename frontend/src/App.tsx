@@ -70,6 +70,9 @@ const DossierDetailPage = lazy(() =>
   import('./pages/DossierDetailPage').then((m) => ({ default: m.DossierDetailPage })),
 )
 const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })))
+const ContactDetailPage = lazy(() =>
+  import('./pages/ContactDetailPage').then((m) => ({ default: m.ContactDetailPage })),
+)
 const AuditPage = lazy(() => import('./pages/AuditPage').then((m) => ({ default: m.AuditPage })))
 const ArchivePage = lazy(() =>
   import('./pages/ArchivePage').then((m) => ({ default: m.ArchivePage })),
@@ -299,6 +302,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <SearchPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contacts/:id"
+              element={
+                <ProtectedRoute>
+                  <ContactDetailPage />
                 </ProtectedRoute>
               }
             />
