@@ -91,3 +91,37 @@ def test_version_without_file_skipped():
             created_by=user,
         )
     mock_idx.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_auto_index_swallows_index_document_exception():
+    """Copre except in apps.search.signals (righe 29-30)."""
+    user = User.objects.create_user(email="idx-exc@test.com", password="test")
+    folder = Folder.objects.create(name="F-EXC")
+    doc = Document.objects.create(
+        title="DocExc",
+        folder=folder,
+        created_by=user,
+        status=Document.STATUS_DRAFT,
+        current_version=1,
+    )
+    up = SimpleUploadedFile("e.txt", b"hello", content_type="text/plain")
+
+    class _SyncThread:
+        def __init__(self, target=None, daemon=True):
+            self._target = target
+
+        def start(self):
+            if self._target:
+                self._target()
+
+    with patch("apps.search.tasks.index_document", side_effect=RuntimeError("index fail")):
+        with patch("apps.search.signals.threading.Thread", _SyncThread):
+            DocumentVersion.objects.create(
+                document=doc,
+                version_number=1,
+                file=up,
+                file_name="e.txt",
+                file_type="text/plain",
+                created_by=user,
+            )

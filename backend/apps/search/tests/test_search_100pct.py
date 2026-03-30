@@ -632,6 +632,101 @@ class TestSearchView100:
         assert r.status_code == 200
         assert r.json()["total_count"] == 0
 
+    # Copre righe: 51-52 — page_size non numerico → default 20
+    def test_invalid_page_size_uses_default(self, api_client, operator_user, tenant, folder):
+        Document.objects.create(
+            title="PSz",
+            folder=folder,
+            created_by=operator_user,
+            status=Document.STATUS_DRAFT,
+            tenant=tenant,
+        )
+        api_client.force_authenticate(user=operator_user)
+        r = api_client.get(
+            "/api/search/",
+            {"q": "PSz", "type": "documents", "page_size": "not-a-number"},
+            **_xh(tenant),
+        )
+        assert r.status_code == 200
+        assert r.json()["total_count"] >= 1
+
+    # Copre righe: 56-57 — page non numerico → default 1
+    def test_invalid_page_uses_default_one(self, api_client, operator_user, tenant, folder):
+        Document.objects.create(
+            title="PgBad",
+            folder=folder,
+            created_by=operator_user,
+            status=Document.STATUS_DRAFT,
+            tenant=tenant,
+        )
+        api_client.force_authenticate(user=operator_user)
+        r = api_client.get(
+            "/api/search/",
+            {"q": "PgBad", "type": "documents", "page": "nope"},
+            **_xh(tenant),
+        )
+        assert r.status_code == 200
+        assert len(r.json()["results"]) >= 1
+
+    # Copre riga 267 — ADMIN: _protocol_queryset senza filtro OU
+    def test_admin_protocol_search_tenant_scope(self, api_client, admin_user, tenant, ou):
+        Protocol.objects.create(
+            tenant=tenant,
+            protocol_id="ADM/P/SCOPE",
+            subject="AdminProtoScopeX",
+            direction="in",
+            status="active",
+            created_by=admin_user,
+            organizational_unit=ou,
+            registered_at=timezone.now(),
+            year=2032,
+            number=1,
+        )
+        api_client.force_authenticate(user=admin_user)
+        r = api_client.get(
+            "/api/search/",
+            {"q": "AdminProtoScopeX", "type": "protocols"},
+            **_xh(tenant),
+        )
+        assert r.status_code == 200
+        assert r.json()["total_count"] >= 1
+
+    # Copre riga 338 — ADMIN: _dossier_queryset senza filtro OU
+    def test_admin_dossier_search_tenant_scope(self, api_client, admin_user, tenant, ou):
+        Dossier.objects.create(
+            tenant=tenant,
+            title="AdminDosScopeY",
+            identifier="ADS-1",
+            created_by=admin_user,
+            organizational_unit=ou,
+        )
+        api_client.force_authenticate(user=admin_user)
+        r = api_client.get(
+            "/api/search/",
+            {"q": "AdminDosScopeY", "type": "dossiers"},
+            **_xh(tenant),
+        )
+        assert r.status_code == 200
+        assert r.json()["total_count"] >= 1
+
+    # Copre righe: 430-431 — q con @ aggiunge Q(email)|Q(pec) (campi cifrati: match DB spesso vuoto)
+    def test_contact_search_email_exact_branch(self, api_client, operator_user, tenant):
+        Contact.objects.create(
+            first_name="Mail",
+            last_name="User",
+            email="uniq.contact@s100.test",
+            is_shared=True,
+            created_by=operator_user,
+        )
+        api_client.force_authenticate(user=operator_user)
+        r = api_client.get(
+            "/api/search/",
+            {"q": "uniq.contact@s100.test", "type": "contacts"},
+            **_xh(tenant),
+        )
+        assert r.status_code == 200
+        assert "total_count" in r.json()
+
 
 @pytest.mark.django_db
 class TestExtractors100:

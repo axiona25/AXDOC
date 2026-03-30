@@ -7,7 +7,8 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 
 from apps.organizations.models import OrganizationalUnit, OrganizationalUnitMembership, Tenant
-from apps.organizations.views import TenantViewSet
+from apps.organizations.serializers import OrganizationalUnitSerializer
+from apps.organizations.views import OrganizationalUnitViewSet, TenantViewSet
 
 User = get_user_model()
 
@@ -89,6 +90,23 @@ class TestTenantViewsCoverage:
         response = view(request)
         assert response.status_code == 404
 
+    def test_list_non_superuser_no_request_tenant_returns_empty(self, db):
+        """Copre TenantViewSet.get_queryset riga 43 (nessun tenant sulla richiesta)."""
+        u = User.objects.create_user(
+            email=f"ntlist-{uuid.uuid4().hex[:8]}@t.com",
+            password="Test123!",
+            role="ADMIN",
+        )
+        factory = APIRequestFactory()
+        request = factory.get("/api/tenants/")
+        request.tenant = None
+        force_authenticate(request, user=u)
+        view = TenantViewSet.as_view(actions={"get": "list"})
+        response = view(request)
+        assert response.status_code == 200
+        rows = response.data.get("results", response.data)
+        assert len(rows) == 0
+
 
 @pytest.fixture
 def ou_admin_setup(db, tenant):
@@ -143,6 +161,29 @@ class TestOrganizationalUnitViewsCoverage:
         r2 = client.get(f"/api/organizations/{ou.id}/members/")
         assert r2.status_code == 200
         assert isinstance(r2.json(), list)
+
+    def test_members_filter_by_role_query(self, ou_admin_setup, tenant):
+        """Copre filtro role__iexact su GET .../members/?role= (apps.organizations.views)."""
+        client, _, ou = ou_admin_setup
+        rev = User.objects.create_user(
+            email=f"rev-{uuid.uuid4().hex[:8]}@t.com",
+            password="Test123!",
+            role="OPERATOR",
+        )
+        rev.tenant = tenant
+        rev.save(update_fields=["tenant"])
+        OrganizationalUnitMembership.objects.create(
+            user=rev,
+            organizational_unit=ou,
+            role="REVIEWER",
+            is_active=True,
+        )
+        r = client.get(f"/api/organizations/{ou.id}/members/", {"role": "reviewer"})
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 1
+        assert data[0]["user"] == str(rev.id)
+        assert data[0]["role"] == "REVIEWER"
 
     def test_add_member_user_not_found(self, ou_admin_setup):
         client, _, ou = ou_admin_setup
@@ -200,3 +241,65 @@ class TestOrganizationalUnitViewsCoverage:
         assert r.status_code in (204, 200)
         ou.refresh_from_db()
         assert ou.is_active is False
+
+    def test_get_serializer_class_fallback_destroy(self):
+        """Copre get_serializer_class default (OrganizationalUnitSerializer)."""
+        view = OrganizationalUnitViewSet()
+        view.action = "destroy"
+        assert view.get_serializer_class() == OrganizationalUnitSerializer
+
+    def test_retrieve_ou_detail(self, ou_admin_setup):
+        client, _, ou = ou_admin_setup
+        r = client.get(f"/api/organizations/{ou.id}/")
+        assert r.status_code == 200
+        assert r.json()["id"] == str(ou.id)
+
+    def test_patch_ou_uses_create_serializer(self, ou_admin_setup):
+        client, _, ou = ou_admin_setup
+        r = client.patch(
+            f"/api/organizations/{ou.id}/",
+            {"name": "Nome patch"},
+            format="json",
+        )
+        assert r.status_code == 200
+        ou.refresh_from_db()
+        assert ou.name == "Nome patch"
+
+    def test_create_ou_sets_created_by(self, ou_admin_setup):
+        client, admin, _ou = ou_admin_setup
+        code = f"C{uuid.uuid4().hex[:5]}"
+        r = client.post(
+            "/api/organizations/",
+            {"name": "Creato da test", "code": code, "description": ""},
+            format="json",
+        )
+        assert r.status_code == 201
+        created = OrganizationalUnit.objects.get(code=code)
+        assert created.created_by_id == admin.id
+
+    def test_add_member_new_user_returns_201(self, ou_admin_setup, tenant):
+        """Copre add_member success (righe 156-160)."""
+        client, admin, ou = ou_admin_setup
+        nu = User.objects.create_user(
+            email=f"newm-{uuid.uuid4().hex[:8]}@t.com",
+            password="Test123!",
+            role="OPERATOR",
+        )
+        nu.tenant = tenant
+        nu.save(update_fields=["tenant"])
+        r = client.post(
+            f"/api/organizations/{ou.id}/add_member/",
+            {"user_id": str(nu.id), "role": "OPERATOR"},
+            format="json",
+        )
+        assert r.status_code == 201
+        assert r.json().get("user") == str(nu.id)
+
+    def test_export_csv_success_returns_attachment(self, ou_admin_setup):
+        """Copre export con buffer non nullo (righe 184-186)."""
+        client, _, ou = ou_admin_setup
+        r = client.get(f"/api/organizations/{ou.id}/export/")
+        assert r.status_code == 200
+        assert r["Content-Type"].startswith("text/csv")
+        assert "attachment" in (r.get("Content-Disposition") or "").lower()
+        assert len(r.content) > 0
